@@ -1,0 +1,146 @@
+// Mediation Helper — data model (v1, single-session local testing)
+// Prisma 7 + SQLite. The datasource URL comes from prisma.config.ts (DATABASE_URL in .env).
+// Note: SQLite has no native enums, so status/role/value-state fields are Strings with
+// allowed values documented inline.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// A negotiation/case. In v1 only one is "In Progress" at a time.
+model Negotiation {
+  id           String    @id @default(cuid())
+  label        String
+  description  String    @default("") // <= 200 words
+  deadlineDate DateTime?
+  deadlineTime String? // optional "HH:MM"
+  status       String    @default("New") // New | In Progress | Paused | Done - Resolved | Done - Abandoned
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  parties      Party[]
+  interests    Interest[]
+  options      Option[]
+  chatMessages ChatMessage[]
+}
+
+/// A human stakeholder. v1 scopes parties to a negotiation (global accounts come later).
+model Party {
+  id             String   @id @default(cuid())
+  negotiationId  String
+  negotiation    Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  displayName    String
+  about          String   @default("") // <= 500-word general intake summary (not interests)
+  role           String   @default("party") // owner | party
+  orderIndex     Int      @default(0) // 0 = Party A, 1 = Party B, 2 = Party C
+  intakeComplete Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  interests      Interest[] // interests this party owns
+  interestPoints InterestPoint[]
+  scores         Score[]
+  votes          Vote[]
+  intakeMessages IntakeMessage[]
+  chatMessages   ChatMessage[]
+
+  @@unique([negotiationId, orderIndex])
+}
+
+/// Something a party cares about, framed positively (3-5 per party).
+model Interest {
+  id            String   @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  ownerPartyId  String
+  ownerParty    Party    @relation(fields: [ownerPartyId], references: [id], onDelete: Cascade)
+  text          String // <= 200 words
+  maslowTier    String? // L1 (must-have) | L2 | null
+  changed       Boolean  @default(false) // signifier when edited after scoring began
+  shared        Boolean  @default(false) // true after a merge: belongs to all parties, not just the owner
+  createdAt     DateTime @default(now())
+
+  points InterestPoint[]
+  scores Score[]
+}
+
+/// Interest Points a party allocates (10 total per party). Post-intake any party may
+/// point any interest; during intake a party points only their own.
+model InterestPoint {
+  id         String   @id @default(cuid())
+  interestId String
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+  partyId    String
+  party      Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  points     Int      @default(0) // 1..10
+
+  @@unique([interestId, partyId])
+}
+
+/// A candidate solution. Authorship (source/which party) is never exposed in the UI.
+model Option {
+  id            String   @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  shortName     String // <= 100 chars, shown on the map
+  description   String   @default("") // <= 1000 words
+  source        String   @default("party") // party | mediator (internal only)
+  hidden        Boolean  @default(false) // unanimous No-Go hides (does not delete)
+  changed       Boolean  @default(false) // signifier when edited after scoring began
+  createdAt     DateTime @default(now())
+
+  scores Score[]
+  votes  Vote[]
+}
+
+/// How a party scores one option against one interest.
+model Score {
+  id         String   @id @default(cuid())
+  optionId   String
+  option     Option   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  interestId String
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+  partyId    String
+  party      Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  value      Int? // 0 | 25 | 50 | 75 | 100 ; null = blank / no opinion
+  na         Boolean  @default(false) // true = not applicable
+
+  @@unique([optionId, interestId, partyId])
+}
+
+/// Non-binding per-party viability vote on an option (changeable anytime).
+model Vote {
+  id       String @id @default(cuid())
+  optionId String
+  option   Option @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  partyId  String
+  party    Party  @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  value    String // go | no_go
+
+  @@unique([optionId, partyId])
+}
+
+/// Private per-party conversation with the AI Mediator (general intake + interest elicitation).
+model IntakeMessage {
+  id        String   @id @default(cuid())
+  partyId   String
+  party     Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  role      String // user | assistant
+  content   String
+  createdAt DateTime @default(now())
+}
+
+/// Shared chat on the Negotiation Map (partyId null = AI Mediator).
+model ChatMessage {
+  id            String   @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  partyId       String?
+  party         Party?   @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  content       String
+  createdAt     DateTime @default(now())
+}
