@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
+import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import {
   suggestInterestsSystemPrompt,
@@ -92,6 +93,7 @@ const INTEREST_SCHEMA = {
 export async function suggestInterests(negotiationId: string): Promise<string[]> {
   const base = await requireParty(negotiationId);
   if (!base) return [];
+  if (!(await consumeAiCredit(base.userId))) return [];
   const party = await prisma.party.findUnique({
     where: { id: base.id },
     include: {

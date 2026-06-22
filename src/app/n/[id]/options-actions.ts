@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
+import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { suggestOptionsSystemPrompt } from "@/lib/mediator";
 
@@ -71,6 +72,7 @@ export async function suggestOptions(
 ): Promise<{ shortName: string; description: string }[]> {
   const party = await requireParty(negotiationId);
   if (!party) return [];
+  if (!(await consumeAiCredit(party.userId))) return [];
 
   const neg = await prisma.negotiation.findUnique({
     where: { id: negotiationId },

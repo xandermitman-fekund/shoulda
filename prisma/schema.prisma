@@ -20,6 +20,7 @@ model User {
 
   parties           Party[]
   ownedNegotiations Negotiation[]
+  aiUsage           AiUsage[]
 }
 
 /// A negotiation/case.
@@ -158,4 +159,15 @@ model ChatMessage {
   party         Party?   @relation(fields: [partyId], references: [id], onDelete: SetNull)
   content       String
   createdAt     DateTime @default(now())
+}
+
+/// Per-user monthly AI usage counter (cost guardrail).
+model AiUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period String // "YYYY-MM" (UTC)
+  count  Int    @default(0)
+
+  @@unique([userId, period])
 }

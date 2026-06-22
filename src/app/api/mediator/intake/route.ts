@@ -2,6 +2,7 @@ import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { intakeSystemPrompt } from "@/lib/mediator";
 import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
+import { consumeAiCredit } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,16 @@ export async function POST(req: Request) {
   const base = await requireParty(negotiationId);
   if (!base) {
     return new Response("Not a participant", { status: 403 });
+  }
+  if (!(await consumeAiCredit(base.userId))) {
+    const msg =
+      "You've reached this demo's monthly limit for the AI mediator. Thanks for trying Common Ground — it's a free demo with usage limits to keep costs in check.";
+    return new Response(msg, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
   }
   const party = await prisma.party.findUnique({
     where: { id: base.id },
