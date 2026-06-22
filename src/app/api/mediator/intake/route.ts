@@ -1,32 +1,36 @@
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { intakeSystemPrompt } from "@/lib/mediator";
 import { prisma } from "@/lib/prisma";
+import { requireParty } from "@/lib/participant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Streaming chat with the AI Mediator during a party's general intake.
- * Body: { partyId: string, message: string }
- * Streams the mediator's reply back as plain text, and persists both the
- * user's message and the mediator's reply to the IntakeMessage table.
+ * Streaming chat with the AI Mediator during a participant's general intake.
+ * Body: { negotiationId: string, message: string }
+ * The caller's party is derived from their auth session — not from the client.
  */
 export async function POST(req: Request) {
-  let body: { partyId?: string; message?: string };
+  let body: { negotiationId?: string; message?: string };
   try {
     body = await req.json();
   } catch {
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  const partyId = String(body.partyId ?? "");
+  const negotiationId = String(body.negotiationId ?? "");
   const message = String(body.message ?? "").trim();
-  if (!partyId || !message) {
-    return new Response("partyId and message are required", { status: 400 });
+  if (!negotiationId || !message) {
+    return new Response("negotiationId and message are required", { status: 400 });
   }
 
+  const base = await requireParty(negotiationId);
+  if (!base) {
+    return new Response("Not a participant", { status: 403 });
+  }
   const party = await prisma.party.findUnique({
-    where: { id: partyId },
+    where: { id: base.id },
     include: {
       negotiation: true,
       intakeMessages: { orderBy: { createdAt: "asc" } },
@@ -35,6 +39,7 @@ export async function POST(req: Request) {
   if (!party) {
     return new Response("Party not found", { status: 404 });
   }
+  const partyId = party.id;
 
   // Build the conversation: prior stored turns + the new user message.
   const history = party.intakeMessages.map((m) => ({

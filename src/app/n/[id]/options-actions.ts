@@ -1,8 +1,14 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireParty } from "@/lib/participant";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { suggestOptionsSystemPrompt } from "@/lib/mediator";
+
+type TextResponse = { content?: Array<{ type: string; text?: string }> };
+function firstText(res: TextResponse): string {
+  return res.content?.find((b) => b.type === "text")?.text ?? "";
+}
 
 /** Add a shared option to the board. Authorship is intentionally NOT recorded. */
 export async function createOption(
@@ -10,6 +16,8 @@ export async function createOption(
   shortName: string,
   description: string,
 ) {
+  const party = await requireParty(negotiationId);
+  if (!party) return null;
   const sn = shortName.trim().slice(0, 100);
   if (!sn) return null;
   const option = await prisma.option.create({
@@ -27,10 +35,14 @@ export async function createOption(
   };
 }
 
-/** Only the mediator can remove an option. */
-export async function deleteOption(id: string) {
-  await prisma.option.delete({ where: { id } });
-  return { id };
+/** Remove an option. Any participant may, for now (the decks reserve this for the mediator). */
+export async function deleteOption(optionId: string) {
+  const option = await prisma.option.findUnique({ where: { id: optionId } });
+  if (!option) return null;
+  const party = await requireParty(option.negotiationId);
+  if (!party) return null;
+  await prisma.option.delete({ where: { id: optionId } });
+  return { id: optionId };
 }
 
 const OPTIONS_SCHEMA = {
@@ -57,19 +69,21 @@ const OPTIONS_SCHEMA = {
 export async function suggestOptions(
   negotiationId: string,
 ): Promise<{ shortName: string; description: string }[]> {
+  const party = await requireParty(negotiationId);
+  if (!party) return [];
+
   const neg = await prisma.negotiation.findUnique({
     where: { id: negotiationId },
     include: { interests: true, options: true },
   });
   if (!neg) return [];
 
-  // Interests are listed anonymously (no party names) to keep the mediator neutral.
   const interestsText =
     neg.interests.map((i) => `- ${i.text}`).join("\n") || "(none shared yet)";
   const existing =
     neg.options.map((o) => `- ${o.shortName}`).join("\n") || "(none yet)";
 
-  const response = await anthropic.messages.create({
+  const response = (await anthropic.messages.create({
     model: MEDIATOR_MODEL,
     max_tokens: 1024,
     system: suggestOptionsSystemPrompt(),
@@ -82,14 +96,10 @@ export async function suggestOptions(
       },
     ],
     output_config: { format: { type: "json_schema", schema: OPTIONS_SCHEMA } },
-  } as Parameters<typeof anthropic.messages.create>[0]);
+  } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
 
-  const block = Array.isArray(response.content)
-    ? response.content.find((b) => b.type === "text")
-    : null;
-  const raw = block && "text" in block ? block.text : "";
   try {
-    const parsed = JSON.parse(raw) as {
+    const parsed = JSON.parse(firstText(response)) as {
       options?: { shortName: string; description: string }[];
     };
     return (parsed.options ?? []).filter((o) => o.shortName);

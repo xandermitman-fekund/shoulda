@@ -1,7 +1,6 @@
-// Mediation Helper — data model (v1, single-session local testing)
-// Prisma 7 + SQLite. The datasource URL comes from prisma.config.ts (DATABASE_URL in .env).
-// Note: SQLite has no native enums, so status/role/value-state fields are Strings with
-// allowed values documented inline.
+// Mediation Helper — data model
+// Prisma 7 + PostgreSQL (Neon). The datasource URL comes from prisma.config.ts (DATABASE_URL in .env).
+// Status/role/value-state fields are Strings with allowed values documented inline.
 
 generator client {
   provider = "prisma-client"
@@ -9,17 +8,31 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
-/// A negotiation/case. In v1 only one is "In Progress" at a time.
+/// A signed-in person, synced from Clerk on first access.
+model User {
+  id          String   @id // Clerk user id
+  email       String?
+  displayName String
+  createdAt   DateTime @default(now())
+
+  parties           Party[]
+  ownedNegotiations Negotiation[]
+}
+
+/// A negotiation/case.
 model Negotiation {
   id           String    @id @default(cuid())
   label        String
   description  String    @default("") // <= 200 words
   deadlineDate DateTime?
   deadlineTime String? // optional "HH:MM"
-  status       String    @default("New") // New | In Progress | Paused | Done - Resolved | Done - Abandoned
+  status       String    @default("In Progress") // New | In Progress | Paused | Done - Resolved | Done - Abandoned
+  ownerUserId  String
+  owner        User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  inviteCode   String    @unique @default(cuid())
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -29,15 +42,17 @@ model Negotiation {
   chatMessages ChatMessage[]
 }
 
-/// A human stakeholder. v1 scopes parties to a negotiation (global accounts come later).
+/// A person's participation in one negotiation (one per user per negotiation), tied to a User account.
 model Party {
   id             String   @id @default(cuid())
   negotiationId  String
   negotiation    Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName    String
   about          String   @default("") // <= 500-word general intake summary (not interests)
-  role           String   @default("party") // owner | party
-  orderIndex     Int      @default(0) // 0 = Party A, 1 = Party B, 2 = Party C
+  role           String   @default("participant") // owner | participant
+  orderIndex     Int      @default(0)
   intakeComplete Boolean  @default(false)
   createdAt      DateTime @default(now())
 
@@ -48,7 +63,7 @@ model Party {
   intakeMessages IntakeMessage[]
   chatMessages   ChatMessage[]
 
-  @@unique([negotiationId, orderIndex])
+  @@unique([negotiationId, userId])
 }
 
 /// Something a party cares about, framed positively (3-5 per party).

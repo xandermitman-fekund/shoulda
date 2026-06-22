@@ -1,40 +1,59 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireParty } from "@/lib/participant";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import {
   suggestInterestsSystemPrompt,
   classifyInterestSystemPrompt,
 } from "@/lib/mediator";
 
-export async function createInterest(partyId: string, text: string) {
+// messages.create() returns a Stream | Message union; for non-streaming calls we
+// read the text block off the result via this minimal shape.
+type TextResponse = { content?: Array<{ type: string; text?: string }> };
+function firstText(res: TextResponse): string {
+  return res.content?.find((b) => b.type === "text")?.text ?? "";
+}
+
+export async function createInterest(negotiationId: string, text: string) {
   const t = text.trim();
   if (!t) return null;
-  const party = await prisma.party.findUnique({ where: { id: partyId } });
+  const party = await requireParty(negotiationId);
   if (!party) return null;
   const interest = await prisma.interest.create({
-    data: { negotiationId: party.negotiationId, ownerPartyId: partyId, text: t },
+    data: { negotiationId, ownerPartyId: party.id, text: t },
   });
   return { id: interest.id, text: interest.text };
 }
 
-export async function updateInterest(id: string, text: string) {
+export async function updateInterest(interestId: string, text: string) {
   const t = text.trim();
   if (!t) return null;
-  await prisma.interest.update({ where: { id }, data: { text: t } });
-  return { id, text: t };
+  const interest = await prisma.interest.findUnique({ where: { id: interestId } });
+  if (!interest) return null;
+  const party = await requireParty(interest.negotiationId);
+  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  await prisma.interest.update({ where: { id: interestId }, data: { text: t } });
+  return { id: interestId, text: t };
 }
 
-export async function deleteInterest(id: string) {
-  await prisma.interest.delete({ where: { id } });
-  return { id };
+export async function deleteInterest(interestId: string) {
+  const interest = await prisma.interest.findUnique({ where: { id: interestId } });
+  if (!interest) return null;
+  const party = await requireParty(interest.negotiationId);
+  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  await prisma.interest.delete({ where: { id: interestId } });
+  return { id: interestId };
 }
 
-/** Save a party's 10-point allocation across their own interests. */
+/** Save the caller's 10-point allocation across their own interests. */
 export async function saveInterestPoints(
-  partyId: string,
+  negotiationId: string,
   allocations: { interestId: string; points: number }[],
 ) {
+  const party = await requireParty(negotiationId);
+  if (!party) return { ok: false as const, error: "You're not a participant." };
+
   const sum = allocations.reduce((s, a) => s + a.points, 0);
   if (sum !== 10) {
     return { ok: false as const, error: "Points must add up to exactly 10." };
@@ -44,8 +63,8 @@ export async function saveInterestPoints(
   }
   for (const a of allocations) {
     await prisma.interestPoint.upsert({
-      where: { interestId_partyId: { interestId: a.interestId, partyId } },
-      create: { interestId: a.interestId, partyId, points: a.points },
+      where: { interestId_partyId: { interestId: a.interestId, partyId: party.id } },
+      create: { interestId: a.interestId, partyId: party.id, points: a.points },
       update: { points: a.points },
     });
   }
@@ -69,10 +88,12 @@ const INTEREST_SCHEMA = {
   required: ["interests"],
 } as const;
 
-/** Ask the AI Mediator to propose interests from the intake conversation. */
-export async function suggestInterests(partyId: string): Promise<string[]> {
+/** Ask the AI Mediator to propose the caller's interests from their intake chat. */
+export async function suggestInterests(negotiationId: string): Promise<string[]> {
+  const base = await requireParty(negotiationId);
+  if (!base) return [];
   const party = await prisma.party.findUnique({
-    where: { id: partyId },
+    where: { id: base.id },
     include: {
       negotiation: true,
       intakeMessages: { orderBy: { createdAt: "asc" } },
@@ -87,7 +108,7 @@ export async function suggestInterests(partyId: string): Promise<string[]> {
     )
     .join("\n");
 
-  const response = await anthropic.messages.create({
+  const response = (await anthropic.messages.create({
     model: MEDIATOR_MODEL,
     max_tokens: 1024,
     system: suggestInterestsSystemPrompt(party.displayName),
@@ -100,14 +121,12 @@ export async function suggestInterests(partyId: string): Promise<string[]> {
       },
     ],
     output_config: { format: { type: "json_schema", schema: INTEREST_SCHEMA } },
-  } as Parameters<typeof anthropic.messages.create>[0]);
+  } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
 
-  const block = Array.isArray(response.content)
-    ? response.content.find((b) => b.type === "text")
-    : null;
-  const raw = block && "text" in block ? block.text : "";
   try {
-    const parsed = JSON.parse(raw) as { interests?: { text: string }[] };
+    const parsed = JSON.parse(firstText(response)) as {
+      interests?: { text: string }[];
+    };
     return (parsed.interests ?? []).map((i) => i.text).filter(Boolean);
   } catch {
     return [];
@@ -133,11 +152,10 @@ export type InterestClassification = {
 
 /**
  * Classify a typed statement as a genuine interest vs. a position/option, and
- * (if needed) coach the user toward the underlying interest. Fails open — if
- * anything goes wrong it returns "interest" so the user is never blocked.
+ * (if needed) coach the user toward the underlying interest. Fails open.
  */
 export async function classifyInterest(
-  partyId: string,
+  negotiationId: string,
   text: string,
 ): Promise<InterestClassification> {
   const fallback: InterestClassification = {
@@ -148,23 +166,19 @@ export async function classifyInterest(
   const t = text.trim();
   if (!t) return fallback;
 
-  const party = await prisma.party.findUnique({ where: { id: partyId } });
+  const party = await requireParty(negotiationId);
   const name = party?.displayName ?? "this person";
 
   try {
-    const response = await anthropic.messages.create({
+    const response = (await anthropic.messages.create({
       model: MEDIATOR_MODEL,
       max_tokens: 512,
       system: classifyInterestSystemPrompt(name),
       messages: [{ role: "user", content: `Statement: "${t}"` }],
       output_config: { format: { type: "json_schema", schema: CLASSIFY_SCHEMA } },
-    } as Parameters<typeof anthropic.messages.create>[0]);
+    } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
 
-    const block = Array.isArray(response.content)
-      ? response.content.find((b) => b.type === "text")
-      : null;
-    const raw = block && "text" in block ? block.text : "";
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(firstText(response));
     if (
       parsed.classification === "interest" ||
       parsed.classification === "option" ||

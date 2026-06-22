@@ -1,15 +1,12 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
-// Reuse a single PrismaClient across hot-reloads in development to avoid
-// exhausting database connections.
+// Reuse a single PrismaClient across hot-reloads in development.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-// Prisma 7's client connects through a driver adapter. The SQLite file path
-// comes from DATABASE_URL (e.g. "file:./dev.db"), resolved relative to cwd.
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL ?? "file:./dev.db",
-});
+// Prisma 7 connects through a driver adapter. We use Neon (serverless Postgres);
+// the connection string comes from DATABASE_URL.
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 

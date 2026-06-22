@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getOrCreateUser } from "@/lib/user";
 import CaseWorkspace from "./CaseWorkspace";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ export default async function CasePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await getOrCreateUser();
+  if (!user) redirect("/sign-in");
   const negotiation = await prisma.negotiation.findUnique({
     where: { id },
     include: {
@@ -31,6 +34,8 @@ export default async function CasePage({
     },
   });
   if (!negotiation) notFound();
+  const me = negotiation.parties.find((p) => p.userId === user.id);
+  if (!me) notFound();
 
   const parties = negotiation.parties.map((p) => ({
     id: p.id,
@@ -76,6 +81,8 @@ export default async function CasePage({
       status={negotiation.status}
       description={negotiation.description}
       parties={parties}
+      currentPartyId={me.id}
+      inviteCode={negotiation.inviteCode}
       intakeByParty={intakeByParty}
       interestsByParty={interestsByParty}
       initialOptions={initialOptions}

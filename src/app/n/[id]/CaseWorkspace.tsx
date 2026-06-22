@@ -35,6 +35,8 @@ export default function CaseWorkspace({
   status,
   description,
   parties,
+  currentPartyId,
+  inviteCode,
   intakeByParty,
   interestsByParty,
   initialOptions,
@@ -45,12 +47,15 @@ export default function CaseWorkspace({
   status: string;
   description: string;
   parties: Party[];
+  currentPartyId: string;
+  inviteCode: string;
   intakeByParty: Record<string, Msg[]>;
   interestsByParty: Record<string, Interest[]>;
   initialOptions: Option[];
   initialScores: ScoreSeed[];
 }) {
-  const [selectedId, setSelectedId] = useState(parties[0]?.id ?? "");
+  // You are always your own party — no actor switching.
+  const me = currentPartyId;
   const [phase, setPhase] = useState<Phase>("intake");
 
   const [msgs, setMsgs] = useState<Record<string, Msg[]>>(intakeByParty);
@@ -61,6 +66,7 @@ export default function CaseWorkspace({
   >({});
   const [streaming, setStreaming] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [options, setOptions] = useState<Option[]>(initialOptions);
   const [optionSuggestions, setOptionSuggestions] = useState<
@@ -79,10 +85,9 @@ export default function CaseWorkspace({
     return m;
   });
 
-  const selected = parties.find((p) => p.id === selectedId);
+  const self = parties.find((p) => p.id === me);
+  const others = parties.filter((p) => p.id !== me);
 
-  // Interests across ALL parties, sorted by priority points (desc) — these are
-  // the columns of the scoring grid and the map.
   const allInterests = parties
     .flatMap((p) => (interests[p.id] ?? []).map((i) => ({ ...i })))
     .sort((a, b) => b.points - a.points || a.text.localeCompare(b.text));
@@ -90,15 +95,21 @@ export default function CaseWorkspace({
     a.shortName.localeCompare(b.shortName),
   );
 
+  function copyInvite() {
+    const link = `${window.location.origin}/join/${inviteCode}`;
+    navigator.clipboard?.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   // ---- Intake chat ----
-  function updateMsgs(partyId: string, updater: (prev: Msg[]) => Msg[]) {
-    setMsgs((prev) => ({ ...prev, [partyId]: updater(prev[partyId] ?? []) }));
+  function updateMsgs(updater: (prev: Msg[]) => Msg[]) {
+    setMsgs((prev) => ({ ...prev, [me]: updater(prev[me] ?? []) }));
   }
 
   async function handleSend(text: string) {
-    const partyId = selectedId;
     setStreaming(true);
-    updateMsgs(partyId, (prev) => [
+    updateMsgs((prev) => [
       ...prev,
       { role: "user", content: text },
       { role: "assistant", content: "" },
@@ -107,7 +118,7 @@ export default function CaseWorkspace({
       const res = await fetch("/api/mediator/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ partyId, message: text }),
+        body: JSON.stringify({ negotiationId, message: text }),
       });
       if (!res.ok || !res.body) throw new Error("Request failed");
       const reader = res.body.getReader();
@@ -117,14 +128,14 @@ export default function CaseWorkspace({
         const { done, value } = await reader.read();
         if (done) break;
         assistant += decoder.decode(value, { stream: true });
-        updateMsgs(partyId, (prev) => {
+        updateMsgs((prev) => {
           const copy = [...prev];
           copy[copy.length - 1] = { role: "assistant", content: assistant };
           return copy;
         });
       }
     } catch {
-      updateMsgs(partyId, (prev) => {
+      updateMsgs((prev) => {
         const copy = [...prev];
         copy[copy.length - 1] = {
           role: "assistant",
@@ -137,49 +148,32 @@ export default function CaseWorkspace({
     }
   }
 
-  // ---- Interests ----
-  function setPartyInterests(
-    partyId: string,
-    updater: (prev: Interest[]) => Interest[],
-  ) {
-    setInterests((prev) => ({
-      ...prev,
-      [partyId]: updater(prev[partyId] ?? []),
-    }));
+  // ---- Interests (yours) ----
+  function setMyInterests(updater: (prev: Interest[]) => Interest[]) {
+    setInterests((prev) => ({ ...prev, [me]: updater(prev[me] ?? []) }));
   }
 
   async function handleAdd(text: string) {
-    const partyId = selectedId;
-    const r = await createInterest(partyId, text);
-    if (r) {
-      setPartyInterests(partyId, (prev) => [
-        ...prev,
-        { id: r.id, text: r.text, points: 0 },
-      ]);
-    }
+    const r = await createInterest(negotiationId, text);
+    if (r) setMyInterests((prev) => [...prev, { id: r.id, text: r.text, points: 0 }]);
   }
 
   async function handleEditInterest(id: string, text: string) {
-    const partyId = selectedId;
     await updateInterest(id, text);
-    setPartyInterests(partyId, (prev) =>
-      prev.map((i) => (i.id === id ? { ...i, text } : i)),
-    );
+    setMyInterests((prev) => prev.map((i) => (i.id === id ? { ...i, text } : i)));
   }
 
   async function handleDeleteInterest(id: string) {
-    const partyId = selectedId;
     await deleteInterest(id);
-    setPartyInterests(partyId, (prev) => prev.filter((i) => i.id !== id));
+    setMyInterests((prev) => prev.filter((i) => i.id !== id));
   }
 
   async function handleSavePoints(
     allocs: { interestId: string; points: number }[],
   ) {
-    const partyId = selectedId;
-    const r = await saveInterestPoints(partyId, allocs);
+    const r = await saveInterestPoints(negotiationId, allocs);
     if (r.ok) {
-      setPartyInterests(partyId, (prev) =>
+      setMyInterests((prev) =>
         prev.map((i) => ({
           ...i,
           points: allocs.find((a) => a.interestId === i.id)?.points ?? i.points,
@@ -190,18 +184,17 @@ export default function CaseWorkspace({
   }
 
   async function handleSuggest() {
-    const partyId = selectedId;
     setSuggesting(true);
     try {
-      const list = await suggestInterests(partyId);
-      setSuggestionsByParty((prev) => ({ ...prev, [partyId]: list }));
+      const list = await suggestInterests(negotiationId);
+      setSuggestionsByParty((prev) => ({ ...prev, [me]: list }));
     } finally {
       setSuggesting(false);
     }
   }
 
   function handleClassify(text: string) {
-    return classifyInterest(selectedId, text);
+    return classifyInterest(negotiationId, text);
   }
 
   // ---- Options (shared) ----
@@ -224,7 +217,7 @@ export default function CaseWorkspace({
     }
   }
 
-  // ---- Scoring ----
+  // ---- Scoring (yours) ----
   function scoreKey(partyId: string, optionId: string, interestId: string) {
     return `${partyId}|${optionId}|${interestId}`;
   }
@@ -243,8 +236,7 @@ export default function CaseWorkspace({
     interestId: string,
     next: ScoreState | null,
   ) {
-    const partyId = selectedId;
-    const key = scoreKey(partyId, optionId, interestId);
+    const key = scoreKey(me, optionId, interestId);
     setScores((prev) => {
       const copy = { ...prev };
       if (next === null) delete copy[key];
@@ -252,29 +244,28 @@ export default function CaseWorkspace({
       return copy;
     });
     if (next === null) {
-      await setScore(partyId, optionId, interestId, { kind: "clear" });
+      await setScore(negotiationId, optionId, interestId, { kind: "clear" });
     } else if (next.na) {
-      await setScore(partyId, optionId, interestId, { kind: "na" });
+      await setScore(negotiationId, optionId, interestId, { kind: "na" });
     } else {
-      await setScore(partyId, optionId, interestId, {
+      await setScore(negotiationId, optionId, interestId, {
         kind: "value",
         value: next.value ?? 0,
       });
     }
   }
 
-  const opener = selected
-    ? `Hi ${selected.displayName}. I'm your mediator — I'm here to help everyone find a solution you can all say "yes" to. There are no wrong answers here. To start, what's something about you that would help me understand where you're coming from?`
-    : "";
+  const myName = self?.displayName ?? "You";
+  const opener = `Hi ${myName}. I'm your mediator — I'm here to help everyone find a solution you can all say "yes" to. There are no wrong answers here. To start, what's something about you that would help me understand where you're coming from?`;
 
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <Link href="/" className="text-sm text-stone-500 hover:text-stone-800">
-          ← All cases
+          ← All negotiations
         </Link>
 
-        <header className="mt-4 mb-6">
+        <header className="mt-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
               {caseLabel}
@@ -286,26 +277,23 @@ export default function CaseWorkspace({
           {description && <p className="mt-2 text-stone-600">{description}</p>}
         </header>
 
-        {/* Actor switcher */}
-        <div className="mb-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-400">
-            You are acting as
+        {/* Participants + invite */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3">
+          <p className="text-sm text-stone-600">
+            You&apos;re here as{" "}
+            <span className="font-medium text-stone-900">{myName}</span>
+            {others.length > 0 ? (
+              <> · with {others.map((o) => o.displayName).join(", ")}</>
+            ) : (
+              <> · no one else has joined yet</>
+            )}
           </p>
-          <div className="flex flex-wrap gap-2">
-            {parties.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  p.id === selectedId
-                    ? "bg-stone-900 text-white"
-                    : "border border-stone-300 bg-white text-stone-700 hover:border-stone-400"
-                }`}
-              >
-                {p.displayName}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={copyInvite}
+            className="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            {copied ? "Invite link copied ✓" : "Invite others"}
+          </button>
         </div>
 
         {/* Phase tabs */}
@@ -330,21 +318,21 @@ export default function CaseWorkspace({
           </Tab>
         </div>
 
-        {phase === "intake" && selected && (
+        {phase === "intake" && (
           <IntakeChat
-            partyName={selected.displayName}
+            partyName={myName}
             opener={opener}
-            messages={msgs[selectedId] ?? []}
+            messages={msgs[me] ?? []}
             streaming={streaming}
             onSend={handleSend}
           />
         )}
 
-        {phase === "interests" && selected && (
+        {phase === "interests" && (
           <InterestsPanel
-            partyName={selected.displayName}
-            interests={interests[selectedId] ?? []}
-            suggestions={suggestionsByParty[selectedId] ?? []}
+            partyName={myName}
+            interests={interests[me] ?? []}
+            suggestions={suggestionsByParty[me] ?? []}
             suggesting={suggesting}
             onAdd={handleAdd}
             onEdit={handleEditInterest}
@@ -355,10 +343,10 @@ export default function CaseWorkspace({
           />
         )}
 
-        {phase === "priorities" && selected && (
+        {phase === "priorities" && (
           <PrioritiesPanel
-            partyName={selected.displayName}
-            interests={interests[selectedId] ?? []}
+            partyName={myName}
+            interests={interests[me] ?? []}
             onSavePoints={handleSavePoints}
           />
         )}
@@ -375,14 +363,12 @@ export default function CaseWorkspace({
           />
         )}
 
-        {phase === "scoring" && selected && (
+        {phase === "scoring" && (
           <ScoringGrid
-            partyName={selected.displayName}
+            partyName={myName}
             interests={allInterests}
             options={sortedOptions}
-            getScore={(optionId, interestId) =>
-              getScore(selectedId, optionId, interestId)
-            }
+            getScore={(optionId, interestId) => getScore(me, optionId, interestId)}
             onSet={handleSetScore}
           />
         )}
@@ -398,8 +384,8 @@ export default function CaseWorkspace({
 
         <p className="mt-4 text-center text-xs text-stone-400">
           {phase === "map"
-            ? "Green cells are where you already agree. Next: vote ideas up or down and get to yes."
-            : "Next up: scoring every option against every interest — then the map lights up."}
+            ? "Green cells are where you already agree."
+            : "Invite the others, then work through the steps together."}
         </p>
       </div>
     </div>
