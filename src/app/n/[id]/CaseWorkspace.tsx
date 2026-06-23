@@ -324,6 +324,7 @@ export default function CaseWorkspace({
             opener={opener}
             messages={msgs[me] ?? []}
             streaming={streaming}
+            onAdvance={() => setPhase("interests")}
             onSend={handleSend}
           />
         )}
