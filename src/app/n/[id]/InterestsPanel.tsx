@@ -3,7 +3,12 @@
 import { useState } from "react";
 import type { InterestClassification } from "./interests-actions";
 
-export type Interest = { id: string; text: string; points: number };
+export type Interest = {
+  id: string;
+  text: string;
+  points: number;
+  mustHave: boolean;
+};
 
 type Note = { message: string; suggestion: string; original: string };
 
@@ -15,6 +20,7 @@ export default function InterestsPanel({
   onAdd,
   onEdit,
   onDelete,
+  onToggleMustHave,
   onSuggest,
   onAcceptSuggestion,
   onClassify,
@@ -26,6 +32,7 @@ export default function InterestsPanel({
   onAdd: (text: string) => void;
   onEdit: (id: string, text: string) => void;
   onDelete: (id: string) => void;
+  onToggleMustHave: (id: string, mustHave: boolean) => void;
   onSuggest: () => void;
   onAcceptSuggestion: (text: string) => void;
   onClassify: (text: string) => Promise<InterestClassification>;
@@ -71,6 +78,8 @@ export default function InterestsPanel({
         <p className="mt-1 text-sm text-stone-500">
           Name 3–5 things you genuinely care about, framed positively — the deeper
           needs behind the situation, not specific solutions (those come later).
+          Mark a <span className="font-medium text-amber-700">★ must-have</span> for
+          anything non-negotiable; those sit above the points.
         </p>
       </div>
 
@@ -117,8 +126,23 @@ export default function InterestsPanel({
               className="flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800 outline-none focus:border-emerald-500 focus:bg-white"
             />
             <button
+              onClick={() => onToggleMustHave(i.id, !i.mustHave)}
+              title={
+                i.mustHave
+                  ? "Must-have (non-negotiable) — click to unset"
+                  : "Mark as a must-have (non-negotiable, top priority)"
+              }
+              className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                i.mustHave
+                  ? "bg-amber-100 text-amber-800"
+                  : "border border-stone-300 text-stone-400 hover:bg-stone-100"
+              }`}
+            >
+              ★ Must-have
+            </button>
+            <button
               onClick={() => onDelete(i.id)}
-              className="rounded-md px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+              className="shrink-0 rounded-md px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
               title="Remove"
             >
               ✕
@@ -181,10 +205,7 @@ export default function InterestsPanel({
         <p className="text-xs text-stone-400">
           {interests.length} of 3–5{interests.length > 5 ? " (too many)" : ""}
           {interests.length >= 3 && (
-            <span className="text-emerald-600">
-              {" "}
-              · ready for the Priorities step →
-            </span>
+            <span className="text-emerald-600"> · ready for the Priorities step →</span>
           )}
         </p>
       </div>

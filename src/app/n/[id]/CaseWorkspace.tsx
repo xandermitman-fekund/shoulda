@@ -12,6 +12,7 @@ import {
   createInterest,
   updateInterest,
   deleteInterest,
+  setMustHave,
   saveInterestPoints,
   suggestInterests,
   classifyInterest,
@@ -90,7 +91,12 @@ export default function CaseWorkspace({
 
   const allInterests = parties
     .flatMap((p) => (interests[p.id] ?? []).map((i) => ({ ...i })))
-    .sort((a, b) => b.points - a.points || a.text.localeCompare(b.text));
+    .sort(
+      (a, b) =>
+        Number(b.mustHave) - Number(a.mustHave) ||
+        b.points - a.points ||
+        a.text.localeCompare(b.text),
+    );
   const sortedOptions = [...options].sort((a, b) =>
     a.shortName.localeCompare(b.shortName),
   );
@@ -155,7 +161,11 @@ export default function CaseWorkspace({
 
   async function handleAdd(text: string) {
     const r = await createInterest(negotiationId, text);
-    if (r) setMyInterests((prev) => [...prev, { id: r.id, text: r.text, points: 0 }]);
+    if (r)
+      setMyInterests((prev) => [
+        ...prev,
+        { id: r.id, text: r.text, points: 0, mustHave: false },
+      ]);
   }
 
   async function handleEditInterest(id: string, text: string) {
@@ -166,6 +176,15 @@ export default function CaseWorkspace({
   async function handleDeleteInterest(id: string) {
     await deleteInterest(id);
     setMyInterests((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  async function handleToggleMustHave(id: string, mustHave: boolean) {
+    await setMustHave(id, mustHave);
+    setMyInterests((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, mustHave, points: mustHave ? 0 : i.points } : i,
+      ),
+    );
   }
 
   async function handleSavePoints(
@@ -338,6 +357,7 @@ export default function CaseWorkspace({
             onAdd={handleAdd}
             onEdit={handleEditInterest}
             onDelete={handleDeleteInterest}
+            onToggleMustHave={handleToggleMustHave}
             onSuggest={handleSuggest}
             onAcceptSuggestion={(text) => handleAdd(text)}
             onClassify={handleClassify}

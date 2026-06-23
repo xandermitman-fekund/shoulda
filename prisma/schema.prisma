@@ -78,6 +78,7 @@ model Interest {
   maslowTier    String? // L1 (must-have) | L2 | null
   changed       Boolean  @default(false) // signifier when edited after scoring began
   shared        Boolean  @default(false) // true after a merge: belongs to all parties, not just the owner
+  mustHave      Boolean  @default(false) // non-negotiable: highest priority class, excluded from the points allocation
   createdAt     DateTime @default(now())
 
   points InterestPoint[]

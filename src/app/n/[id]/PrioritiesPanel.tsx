@@ -14,16 +14,19 @@ export default function PrioritiesPanel({
     allocs: { interestId: string; points: number }[],
   ) => Promise<{ ok: boolean; error?: string }>;
 }) {
+  const mustHaves = interests.filter((i) => i.mustHave);
+  const pointable = interests.filter((i) => !i.mustHave);
+
   const [points, setPoints] = useState<Record<string, number>>(() =>
-    Object.fromEntries(interests.map((i) => [i.id, i.points])),
+    Object.fromEntries(pointable.map((i) => [i.id, i.points])),
   );
   const [saveMsg, setSaveMsg] = useState("");
 
-  const ids = interests.map((i) => i.id).join(",");
+  const ids = pointable.map((i) => i.id).join(",");
   useEffect(() => {
     setPoints((prev) => {
       const next: Record<string, number> = {};
-      for (const i of interests) next[i.id] = prev[i.id] ?? i.points;
+      for (const i of pointable) next[i.id] = prev[i.id] ?? i.points;
       return next;
     });
     setSaveMsg("");
@@ -40,7 +43,7 @@ export default function PrioritiesPanel({
     );
   }
 
-  const total = Object.values(points).reduce((s, n) => s + n, 0);
+  const total = pointable.reduce((s, i) => s + (points[i.id] ?? 0), 0);
 
   function bump(id: string, delta: number) {
     setPoints((p) => {
@@ -52,7 +55,7 @@ export default function PrioritiesPanel({
 
   async function save() {
     const r = await onSavePoints(
-      interests.map((i) => ({ interestId: i.id, points: points[i.id] ?? 0 })),
+      pointable.map((i) => ({ interestId: i.id, points: points[i.id] ?? 0 })),
     );
     setSaveMsg(r.ok ? "Saved ✓" : r.error ?? "Could not save.");
   }
@@ -62,55 +65,89 @@ export default function PrioritiesPanel({
       <h2 className="text-lg font-medium text-stone-900">
         What matters most to {partyName}?
       </h2>
-      <p className="mt-1 text-sm text-stone-500">
-        You have <strong>10 points</strong> to spend across your interests. Give
-        more to what matters more — it helps everyone see your priorities.
-      </p>
 
-      <div className="mt-4 space-y-2">
-        {interests.map((i) => (
-          <div key={i.id} className="flex items-center gap-3">
-            <span className="flex-1 text-sm text-stone-700">{i.text}</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => bump(i.id, -1)}
-                className="h-7 w-7 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+      {/* Must-haves: top priority, no points */}
+      {mustHaves.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+            ★ Must-haves · top priority
+          </p>
+          <ul className="mt-2 space-y-1">
+            {mustHaves.map((i) => (
+              <li
+                key={i.id}
+                className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-stone-700"
               >
-                −
-              </button>
-              <span className="w-6 text-center text-sm font-medium text-stone-900">
-                {points[i.id] ?? 0}
-              </span>
+                <span className="text-amber-600">★</span>
+                {i.text}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-stone-400">
+            Non-negotiables — they sit above the points, so there&apos;s nothing to
+            weigh here.
+          </p>
+        </div>
+      )}
+
+      {/* Points allocator over the non-must-have interests */}
+      {pointable.length === 0 ? (
+        <p className="mt-5 text-sm text-stone-500">
+          All of your interests are must-haves — nothing left to weigh. You&apos;re
+          set for this step.
+        </p>
+      ) : (
+        <>
+          <p className="mt-5 text-sm text-stone-500">
+            Spend <strong>10 points</strong> across the rest — give more to what
+            matters more.
+          </p>
+          <div className="mt-3 space-y-2">
+            {pointable.map((i) => (
+              <div key={i.id} className="flex items-center gap-3">
+                <span className="flex-1 text-sm text-stone-700">{i.text}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => bump(i.id, -1)}
+                    className="h-7 w-7 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-sm font-medium text-stone-900">
+                    {points[i.id] ?? 0}
+                  </span>
+                  <button
+                    onClick={() => bump(i.id, 1)}
+                    className="h-7 w-7 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <span
+              className={`text-sm font-medium ${
+                total === 10 ? "text-emerald-700" : "text-stone-500"
+              }`}
+            >
+              {total} / 10 points used
+            </span>
+            <div className="flex items-center gap-3">
+              {saveMsg && <span className="text-sm text-stone-500">{saveMsg}</span>}
               <button
-                onClick={() => bump(i.id, 1)}
-                className="h-7 w-7 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+                onClick={save}
+                disabled={total !== 10}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
               >
-                +
+                Save priorities
               </button>
             </div>
           </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex items-center justify-between">
-        <span
-          className={`text-sm font-medium ${
-            total === 10 ? "text-emerald-700" : "text-stone-500"
-          }`}
-        >
-          {total} / 10 points used
-        </span>
-        <div className="flex items-center gap-3">
-          {saveMsg && <span className="text-sm text-stone-500">{saveMsg}</span>}
-          <button
-            onClick={save}
-            disabled={total !== 10}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
-          >
-            Save priorities
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </section>
   );
 }

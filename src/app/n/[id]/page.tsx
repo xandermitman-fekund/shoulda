@@ -44,7 +44,10 @@ export default async function CasePage({
   }));
 
   const intakeByParty: Record<string, { role: "user" | "assistant"; content: string }[]> = {};
-  const interestsByParty: Record<string, { id: string; text: string; points: number }[]> = {};
+  const interestsByParty: Record<
+    string,
+    { id: string; text: string; points: number; mustHave: boolean }[]
+  > = {};
 
   for (const p of negotiation.parties) {
     intakeByParty[p.id] = p.intakeMessages.map((m) => ({
@@ -55,6 +58,7 @@ export default async function CasePage({
       id: i.id,
       text: i.text,
       points: i.points.find((pt) => pt.partyId === p.id)?.points ?? 0,
+      mustHave: i.mustHave,
     }));
   }
 

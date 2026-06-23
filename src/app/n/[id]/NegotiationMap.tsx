@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ScoreState } from "./ScoringGrid";
 
-type Interest = { id: string; text: string; points: number };
+type Interest = { id: string; text: string; points: number; mustHave: boolean };
 type Option = { id: string; shortName: string };
 type Party = { id: string; displayName: string };
 
@@ -114,7 +114,11 @@ export default function NegotiationMap({
             >
               <div className="line-clamp-3">{i.text}</div>
               <div className="mt-1 text-stone-400">
-                {i.points} pt{i.points === 1 ? "" : "s"}
+                {i.mustHave ? (
+                  <span className="font-medium text-amber-600">★ must-have</span>
+                ) : (
+                  `${i.points} pt${i.points === 1 ? "" : "s"}`
+                )}
               </div>
             </th>
           ))}

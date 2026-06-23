@@ -47,6 +47,19 @@ export async function deleteInterest(interestId: string) {
   return { id: interestId };
 }
 
+/** Toggle a "must-have" on the caller's interest. Must-haves don't compete for points, so clear any. */
+export async function setMustHave(interestId: string, mustHave: boolean) {
+  const interest = await prisma.interest.findUnique({ where: { id: interestId } });
+  if (!interest) return null;
+  const party = await requireParty(interest.negotiationId);
+  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  await prisma.interest.update({ where: { id: interestId }, data: { mustHave } });
+  if (mustHave) {
+    await prisma.interestPoint.deleteMany({ where: { interestId } });
+  }
+  return { id: interestId, mustHave };
+}
+
 /** Save the caller's 10-point allocation across their own interests. */
 export async function saveInterestPoints(
   negotiationId: string,
