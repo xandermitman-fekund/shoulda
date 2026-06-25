@@ -177,6 +177,16 @@ model AiUsage {
   @@unique([userId, period])
 }
 
+/// Pilot allowlist — emails admitted to CREATE negotiations. Anyone may still
+/// JOIN via an invite link. Admins (ADMIN_EMAILS) are implicitly admitted.
+model Allowlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  note      String?
+  addedBy   String? // admin User id who admitted them
+  createdAt DateTime @default(now())
+}
+
 /// Per-call AI cost ledger powering the operator usage/cost console.
 model AiCall {
   id            String       @id @default(cuid())

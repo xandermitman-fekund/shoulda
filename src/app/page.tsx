@@ -3,6 +3,7 @@ import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import { isAdminEmail } from "@/lib/admin";
+import { isAdmitted } from "@/lib/access";
 import { createCase } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export default async function Home() {
   const user = await getOrCreateUser();
   const signedIn = Boolean(user);
   const admin = isAdminEmail(user?.email);
+  const admitted = signedIn ? await isAdmitted(user?.email) : false;
+  const requestUrl = process.env.PILOT_REQUEST_URL ?? "";
 
   const cases = user
     ? await prisma.negotiation.findMany({
@@ -90,43 +93,67 @@ export default async function Home() {
               </p>
             </header>
 
-            <section className="mb-10 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-medium text-stone-900">Start a new one</h2>
-              <form action={createCase} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-stone-700">
-                    What are you working out?
-                  </label>
-                  <input
-                    name="label"
-                    required
-                    placeholder="e.g. Where should the team offsite be?"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-stone-700">
-                    A little more detail (optional)
-                  </label>
-                  <textarea
-                    name="description"
-                    rows={2}
-                    placeholder="Briefly, what's this about?"
-                    className={inputClass}
-                  />
-                </div>
-                <p className="text-xs text-stone-400">
-                  You&apos;ll be added as the first participant — invite others with a
-                  link once it&apos;s created.
+            {admitted ? (
+              <section className="mb-10 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-medium text-stone-900">Start a new one</h2>
+                <form action={createCase} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700">
+                      What are you working out?
+                    </label>
+                    <input
+                      name="label"
+                      required
+                      placeholder="e.g. Where should the team offsite be?"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700">
+                      A little more detail (optional)
+                    </label>
+                    <textarea
+                      name="description"
+                      rows={2}
+                      placeholder="Briefly, what's this about?"
+                      className={inputClass}
+                    />
+                  </div>
+                  <p className="text-xs text-stone-400">
+                    You&apos;ll be added as the first participant — invite others with a
+                    link once it&apos;s created.
+                  </p>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-700"
+                  >
+                    Create →
+                  </button>
+                </form>
+              </section>
+            ) : (
+              <section className="mb-10 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-medium text-stone-900">
+                  You&apos;re on the waitlist
+                </h2>
+                <p className="mt-2 text-sm text-stone-600">
+                  Common Ground is in a small private pilot right now. You can still
+                  take part in any negotiation you&apos;re{" "}
+                  <strong>invited</strong> to — starting your own opens up once
+                  you&apos;re admitted.
                 </p>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-700"
-                >
-                  Create →
-                </button>
-              </form>
-            </section>
+                {requestUrl && (
+                  <a
+                    href={requestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  >
+                    Request access →
+                  </a>
+                )}
+              </section>
+            )}
 
             <section>
               <h2 className="mb-4 text-lg font-medium text-stone-900">Recent</h2>

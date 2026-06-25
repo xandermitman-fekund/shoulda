@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
+import { isAdmitted } from "@/lib/access";
 import { redirect } from "next/navigation";
 
 /**
@@ -11,6 +12,9 @@ import { redirect } from "next/navigation";
 export async function createCase(formData: FormData) {
   const user = await getOrCreateUser();
   if (!user) redirect("/sign-in");
+
+  // Pilot gate: only admitted users may create (anyone may still join via invite).
+  if (!(await isAdmitted(user.email))) redirect("/");
 
   const label = String(formData.get("label") ?? "").trim();
   if (!label) return;
