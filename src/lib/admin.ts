@@ -10,3 +10,8 @@ export function isAdminEmail(email: string | null | undefined): boolean {
     .filter(Boolean);
   return allow.includes(email.toLowerCase());
 }
+
+/** True if any admin email is configured at all. */
+export function adminsConfigured(): boolean {
+  return Boolean((process.env.ADMIN_EMAILS ?? "").trim());
+}
