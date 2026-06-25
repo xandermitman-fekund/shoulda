@@ -4,11 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
+import { recordAiCost } from "@/lib/ai-cost";
 import { scipabSystemPrompt } from "@/lib/mediator";
 
 // messages.create() returns a Stream | Message union; for non-streaming calls we
-// read the text block off the result via this minimal shape.
-type TextResponse = { content?: Array<{ type: string; text?: string }> };
+// read the text block (and usage) off the result via this minimal shape.
+type TextResponse = {
+  content?: Array<{ type: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+};
 function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
@@ -177,6 +181,13 @@ Write the group's SCIPAB document of record now.`;
         ? parsed.tensions.map(String)
         : [],
     };
+    await recordAiCost({
+      negotiationId,
+      userId: base.userId,
+      kind: "scipab",
+      model: MEDIATOR_MODEL,
+      usage: response.usage,
+    });
   } catch {
     return {
       ok: false,

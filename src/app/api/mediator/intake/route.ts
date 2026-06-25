@@ -3,6 +3,7 @@ import { intakeSystemPrompt } from "@/lib/mediator";
 import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
+import { recordAiCost } from "@/lib/ai-cost";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,6 +92,18 @@ export async function POST(req: Request) {
           await prisma.intakeMessage.create({
             data: { partyId, role: "assistant", content: full },
           });
+        }
+        try {
+          const finalMsg = await llm.finalMessage();
+          await recordAiCost({
+            negotiationId,
+            userId: base.userId,
+            kind: "intake",
+            model: MEDIATOR_MODEL,
+            usage: finalMsg.usage,
+          });
+        } catch {
+          // cost logging is best-effort
         }
         controller.close();
       } catch (err) {

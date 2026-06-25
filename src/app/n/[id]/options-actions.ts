@@ -4,9 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
+import { recordAiCost } from "@/lib/ai-cost";
 import { suggestOptionsSystemPrompt } from "@/lib/mediator";
 
-type TextResponse = { content?: Array<{ type: string; text?: string }> };
+type TextResponse = {
+  content?: Array<{ type: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+};
 function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
@@ -99,6 +103,14 @@ export async function suggestOptions(
     ],
     output_config: { format: { type: "json_schema", schema: OPTIONS_SCHEMA } },
   } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
+
+  await recordAiCost({
+    negotiationId,
+    userId: party.userId,
+    kind: "suggest_options",
+    model: MEDIATOR_MODEL,
+    usage: response.usage,
+  });
 
   try {
     const parsed = JSON.parse(firstText(response)) as {

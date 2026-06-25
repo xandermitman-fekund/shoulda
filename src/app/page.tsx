@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
+import { isAdminEmail } from "@/lib/admin";
 import { createCase } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const inputClass =
 export default async function Home() {
   const user = await getOrCreateUser();
   const signedIn = Boolean(user);
+  const admin = isAdminEmail(user?.email);
 
   const cases = user
     ? await prisma.negotiation.findMany({
@@ -31,7 +33,17 @@ export default async function Home() {
           </span>
           <div className="flex items-center gap-3">
             {signedIn ? (
-              <UserButton />
+              <>
+                {admin && (
+                  <Link
+                    href="/usage"
+                    className="text-sm font-medium text-stone-600 hover:text-stone-900"
+                  >
+                    Usage &amp; cost
+                  </Link>
+                )}
+                <UserButton />
+              </>
             ) : (
               <>
                 <SignInButton mode="modal">

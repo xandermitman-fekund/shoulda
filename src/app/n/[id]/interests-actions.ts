@@ -4,14 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { requireParty } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
+import { recordAiCost } from "@/lib/ai-cost";
 import {
   suggestInterestsSystemPrompt,
   classifyInterestSystemPrompt,
 } from "@/lib/mediator";
 
 // messages.create() returns a Stream | Message union; for non-streaming calls we
-// read the text block off the result via this minimal shape.
-type TextResponse = { content?: Array<{ type: string; text?: string }> };
+// read the text block (and usage, for cost tracking) off the result via this shape.
+type TextResponse = {
+  content?: Array<{ type: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+};
 function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
@@ -160,6 +164,14 @@ export async function suggestInterests(negotiationId: string): Promise<string[]>
     output_config: { format: { type: "json_schema", schema: INTEREST_SCHEMA } },
   } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
 
+  await recordAiCost({
+    negotiationId,
+    userId: base.userId,
+    kind: "suggest_interests",
+    model: MEDIATOR_MODEL,
+    usage: response.usage,
+  });
+
   try {
     const parsed = JSON.parse(firstText(response)) as {
       interests?: { text: string }[];
@@ -214,6 +226,16 @@ export async function classifyInterest(
       messages: [{ role: "user", content: `Statement: "${t}"` }],
       output_config: { format: { type: "json_schema", schema: CLASSIFY_SCHEMA } },
     } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
+
+    if (party) {
+      await recordAiCost({
+        negotiationId,
+        userId: party.userId,
+        kind: "classify",
+        model: MEDIATOR_MODEL,
+        usage: response.usage,
+      });
+    }
 
     const parsed = JSON.parse(firstText(response));
     if (

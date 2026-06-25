@@ -43,6 +43,7 @@ model Negotiation {
   interests    Interest[]
   options      Option[]
   chatMessages ChatMessage[]
+  aiCalls      AiCall[]
 }
 
 /// A person's participation in one negotiation (one per user per negotiation), tied to a User account.
@@ -174,4 +175,21 @@ model AiUsage {
   count  Int    @default(0)
 
   @@unique([userId, period])
+}
+
+/// Per-call AI cost ledger powering the operator usage/cost console.
+model AiCall {
+  id            String       @id @default(cuid())
+  negotiationId String?
+  negotiation   Negotiation? @relation(fields: [negotiationId], references: [id], onDelete: SetNull)
+  userId        String? // who triggered the call (not FK-constrained, for retention)
+  kind          String // intake | suggest_interests | classify | suggest_options | scipab
+  model         String
+  inputTokens   Int          @default(0)
+  outputTokens  Int          @default(0)
+  costUsd       Float        @default(0)
+  createdAt     DateTime     @default(now())
+
+  @@index([negotiationId])
+  @@index([createdAt])
 }
