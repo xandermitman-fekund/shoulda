@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import IntakeChat, { type Msg } from "./IntakeChat";
-import InterestsPanel, { type Interest } from "./InterestsPanel";
+import InterestsPanel from "./InterestsPanel";
 import PrioritiesPanel from "./PrioritiesPanel";
 import OptionsPanel, { type Option } from "./OptionsPanel";
 import ScoringGrid, { type ScoreState } from "./ScoringGrid";
@@ -14,14 +14,50 @@ import {
   deleteInterest,
   setMustHave,
   saveInterestPoints,
+  submitInterests,
+  reopenInterests,
   suggestInterests,
   classifyInterest,
 } from "./interests-actions";
+import ScipabPanel from "./ScipabPanel";
 import { createOption, deleteOption, suggestOptions } from "./options-actions";
 import { setScore } from "./scoring-actions";
+import { draftScipab, type Scipab } from "./scipab-actions";
 
-type Party = { id: string; displayName: string; role: string };
-type Phase = "intake" | "interests" | "priorities" | "options" | "scoring" | "map";
+type Party = { id: string; displayName: string; role: string; interestsReady: boolean };
+type Phase =
+  | "intake"
+  | "interests"
+  | "priorities"
+  | "options"
+  | "scoring"
+  | "map"
+  | "scipab";
+type WorkInterest = {
+  id: string;
+  text: string;
+  mustHave: boolean;
+  ownerPartyId: string; // internal only — who typed it; never exposed in the UI
+  myPoints: number;
+  totalPoints: number;
+  backerIds: string[]; // parties with ≥1 point on this interest (the association)
+};
+
+// One badge style per party, assigned by join order. Stable across the workspace.
+const PARTY_BADGE_COLORS = [
+  "bg-emerald-100 text-emerald-700",
+  "bg-sky-100 text-sky-700",
+  "bg-violet-100 text-violet-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-teal-100 text-teal-700",
+];
+export type Backer = {
+  id: string;
+  name: string;
+  initial: string;
+  color: string;
+};
 type ScoreSeed = {
   partyId: string;
   optionId: string;
@@ -39,9 +75,10 @@ export default function CaseWorkspace({
   currentPartyId,
   inviteCode,
   intakeByParty,
-  interestsByParty,
+  allInterests,
   initialOptions,
   initialScores,
+  initialScipab,
 }: {
   negotiationId: string;
   caseLabel: string;
@@ -51,17 +88,20 @@ export default function CaseWorkspace({
   currentPartyId: string;
   inviteCode: string;
   intakeByParty: Record<string, Msg[]>;
-  interestsByParty: Record<string, Interest[]>;
+  allInterests: WorkInterest[];
   initialOptions: Option[];
   initialScores: ScoreSeed[];
+  initialScipab: Scipab | null;
 }) {
   // You are always your own party — no actor switching.
   const me = currentPartyId;
   const [phase, setPhase] = useState<Phase>("intake");
 
   const [msgs, setMsgs] = useState<Record<string, Msg[]>>(intakeByParty);
-  const [interests, setInterests] =
-    useState<Record<string, Interest[]>>(interestsByParty);
+  const [interests, setInterests] = useState<WorkInterest[]>(allInterests);
+  const [readyByParty, setReadyByParty] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(parties.map((p) => [p.id, p.interestsReady])),
+  );
   const [suggestionsByParty, setSuggestionsByParty] = useState<
     Record<string, string[]>
   >({});
@@ -86,17 +126,64 @@ export default function CaseWorkspace({
     return m;
   });
 
+  const [scipab, setScipab] = useState<Scipab | null>(initialScipab);
+  const [draftingScipab, setDraftingScipab] = useState(false);
+  const [scipabError, setScipabError] = useState("");
+
   const self = parties.find((p) => p.id === me);
   const others = parties.filter((p) => p.id !== me);
+  const myName = self?.displayName ?? "You";
 
-  const allInterests = parties
-    .flatMap((p) => (interests[p.id] ?? []).map((i) => ({ ...i })))
-    .sort(
+  // ---- Readiness / the gate ----
+  const submitted = !!readyByParty[me];
+  // Shared steps open once at least one other person has joined and everyone has shared.
+  const allReady = parties.length >= 2 && parties.every((p) => readyByParty[p.id]);
+
+  const sortInterests = (list: WorkInterest[]) =>
+    [...list].sort(
       (a, b) =>
         Number(b.mustHave) - Number(a.mustHave) ||
-        b.points - a.points ||
+        b.totalPoints - a.totalPoints ||
         a.text.localeCompare(b.text),
     );
+
+  // Resolve a party id into a display badge (initial + color), color stable by join order.
+  function badgeFor(partyId: string): Backer {
+    const idx = parties.findIndex((p) => p.id === partyId);
+    const name = parties[idx]?.displayName ?? "?";
+    return {
+      id: partyId,
+      name,
+      initial: name[0]?.toUpperCase() ?? "?",
+      color: PARTY_BADGE_COLORS[(idx < 0 ? 0 : idx) % PARTY_BADGE_COLORS.length],
+    };
+  }
+  const myBadge = badgeFor(me);
+
+  // Your own interests (step 2) — in creation order.
+  const myInterests = interests
+    .filter((i) => i.ownerPartyId === me)
+    .map((i) => ({ id: i.id, text: i.text, mustHave: i.mustHave }));
+
+  // Everyone's interests, for the cross-party priorities step. No authorship shown —
+  // badges come from who's backing each one with points (your own resolves live in the panel).
+  const priorityInterests = sortInterests(interests).map((i) => ({
+    id: i.id,
+    text: i.text,
+    mustHave: i.mustHave,
+    myPoints: i.myPoints,
+    otherBackers: i.backerIds.filter((id) => id !== me).map(badgeFor),
+  }));
+
+  // Everyone's interests ranked by combined points, for scoring + the map.
+  const gridInterests = sortInterests(interests).map((i) => ({
+    id: i.id,
+    text: i.text,
+    mustHave: i.mustHave,
+    points: i.totalPoints,
+    backers: i.backerIds.map(badgeFor),
+  }));
+
   const sortedOptions = [...options].sort((a, b) =>
     a.shortName.localeCompare(b.shortName),
   );
@@ -155,34 +242,46 @@ export default function CaseWorkspace({
   }
 
   // ---- Interests (yours) ----
-  function setMyInterests(updater: (prev: Interest[]) => Interest[]) {
-    setInterests((prev) => ({ ...prev, [me]: updater(prev[me] ?? []) }));
-  }
-
   async function handleAdd(text: string) {
     const r = await createInterest(negotiationId, text);
     if (r)
-      setMyInterests((prev) => [
+      setInterests((prev) => [
         ...prev,
-        { id: r.id, text: r.text, points: 0, mustHave: false },
+        {
+          id: r.id,
+          text: r.text,
+          mustHave: false,
+          ownerPartyId: me,
+          myPoints: 0,
+          totalPoints: 0,
+          backerIds: [],
+        },
       ]);
   }
 
   async function handleEditInterest(id: string, text: string) {
     await updateInterest(id, text);
-    setMyInterests((prev) => prev.map((i) => (i.id === id ? { ...i, text } : i)));
+    setInterests((prev) => prev.map((i) => (i.id === id ? { ...i, text } : i)));
   }
 
   async function handleDeleteInterest(id: string) {
     await deleteInterest(id);
-    setMyInterests((prev) => prev.filter((i) => i.id !== id));
+    setInterests((prev) => prev.filter((i) => i.id !== id));
   }
 
   async function handleToggleMustHave(id: string, mustHave: boolean) {
     await setMustHave(id, mustHave);
-    setMyInterests((prev) =>
+    setInterests((prev) =>
       prev.map((i) =>
-        i.id === id ? { ...i, mustHave, points: mustHave ? 0 : i.points } : i,
+        i.id === id
+          ? {
+              ...i,
+              mustHave,
+              myPoints: mustHave ? 0 : i.myPoints,
+              totalPoints: mustHave ? 0 : i.totalPoints,
+              backerIds: mustHave ? [] : i.backerIds,
+            }
+          : i,
       ),
     );
   }
@@ -192,14 +291,32 @@ export default function CaseWorkspace({
   ) {
     const r = await saveInterestPoints(negotiationId, allocs);
     if (r.ok) {
-      setMyInterests((prev) =>
-        prev.map((i) => ({
-          ...i,
-          points: allocs.find((a) => a.interestId === i.id)?.points ?? i.points,
-        })),
+      const byId = new Map(allocs.map((a) => [a.interestId, a.points]));
+      setInterests((prev) =>
+        prev.map((i) => {
+          if (!byId.has(i.id)) return i;
+          const newMy = byId.get(i.id) ?? 0;
+          const others = i.backerIds.filter((id) => id !== me);
+          return {
+            ...i,
+            myPoints: newMy,
+            totalPoints: i.totalPoints - i.myPoints + newMy,
+            backerIds: newMy > 0 ? [...others, me] : others,
+          };
+        }),
       );
     }
     return r;
+  }
+
+  async function handleSubmitInterests() {
+    setReadyByParty((prev) => ({ ...prev, [me]: true }));
+    await submitInterests(negotiationId);
+  }
+
+  async function handleReopenInterests() {
+    setReadyByParty((prev) => ({ ...prev, [me]: false }));
+    await reopenInterests(negotiationId);
   }
 
   async function handleSuggest() {
@@ -274,7 +391,19 @@ export default function CaseWorkspace({
     }
   }
 
-  const myName = self?.displayName ?? "You";
+  // ---- The agreement (SCIPAB) ----
+  async function handleDraftScipab() {
+    setDraftingScipab(true);
+    setScipabError("");
+    try {
+      const r = await draftScipab(negotiationId);
+      if (r.ok) setScipab(r.scipab);
+      else setScipabError(r.error);
+    } finally {
+      setDraftingScipab(false);
+    }
+  }
+
   const opener = `Hi ${myName}. I'm your mediator — I'm here to help everyone find a solution you can all say "yes" to. There are no wrong answers here. To start, what's something about you that would help me understand where you're coming from?`;
 
   return (
@@ -324,16 +453,19 @@ export default function CaseWorkspace({
             2 · What matters
           </Tab>
           <Tab active={phase === "priorities"} onClick={() => setPhase("priorities")}>
-            3 · Priorities
+            3 · Priorities{!allReady && " 🔒"}
           </Tab>
           <Tab active={phase === "options"} onClick={() => setPhase("options")}>
             4 · Options
           </Tab>
           <Tab active={phase === "scoring"} onClick={() => setPhase("scoring")}>
-            5 · Scoring
+            5 · Scoring{!allReady && " 🔒"}
           </Tab>
           <Tab active={phase === "map"} onClick={() => setPhase("map")}>
             6 · The map
+          </Tab>
+          <Tab active={phase === "scipab"} onClick={() => setPhase("scipab")}>
+            7 · The agreement
           </Tab>
         </div>
 
@@ -351,9 +483,10 @@ export default function CaseWorkspace({
         {phase === "interests" && (
           <InterestsPanel
             partyName={myName}
-            interests={interests[me] ?? []}
+            interests={myInterests}
             suggestions={suggestionsByParty[me] ?? []}
             suggesting={suggesting}
+            submitted={submitted}
             onAdd={handleAdd}
             onEdit={handleEditInterest}
             onDelete={handleDeleteInterest}
@@ -361,16 +494,29 @@ export default function CaseWorkspace({
             onSuggest={handleSuggest}
             onAcceptSuggestion={(text) => handleAdd(text)}
             onClassify={handleClassify}
+            onSubmit={handleSubmitInterests}
+            onReopen={handleReopenInterests}
           />
         )}
 
-        {phase === "priorities" && (
-          <PrioritiesPanel
-            partyName={myName}
-            interests={interests[me] ?? []}
-            onSavePoints={handleSavePoints}
-          />
-        )}
+        {phase === "priorities" &&
+          (allReady ? (
+            <PrioritiesPanel
+              partyName={myName}
+              interests={priorityInterests}
+              myBadge={myBadge}
+              onSavePoints={handleSavePoints}
+            />
+          ) : (
+            <LockedStep
+              title="Priorities open once everyone's shared"
+              parties={parties}
+              readyByParty={readyByParty}
+              me={me}
+              meReady={submitted}
+              onGoShare={() => setPhase("interests")}
+            />
+          ))}
 
         {phase === "options" && (
           <OptionsPanel
@@ -384,29 +530,51 @@ export default function CaseWorkspace({
           />
         )}
 
-        {phase === "scoring" && (
-          <ScoringGrid
-            partyName={myName}
-            interests={allInterests}
-            options={sortedOptions}
-            getScore={(optionId, interestId) => getScore(me, optionId, interestId)}
-            onSet={handleSetScore}
-          />
-        )}
+        {phase === "scoring" &&
+          (allReady ? (
+            <ScoringGrid
+              partyName={myName}
+              interests={gridInterests}
+              options={sortedOptions}
+              getScore={(optionId, interestId) => getScore(me, optionId, interestId)}
+              onSet={handleSetScore}
+            />
+          ) : (
+            <LockedStep
+              title="Scoring opens once everyone's shared"
+              parties={parties}
+              readyByParty={readyByParty}
+              me={me}
+              meReady={submitted}
+              onGoShare={() => setPhase("interests")}
+            />
+          ))}
 
         {phase === "map" && (
           <NegotiationMap
-            interests={allInterests}
+            interests={gridInterests}
             options={sortedOptions}
             parties={parties}
             getScore={getScore}
           />
         )}
 
+        {phase === "scipab" && (
+          <ScipabPanel
+            scipab={scipab}
+            drafting={draftingScipab}
+            error={scipabError}
+            hasOptions={options.length > 0}
+            onDraft={handleDraftScipab}
+          />
+        )}
+
         <p className="mt-4 text-center text-xs text-stone-400">
           {phase === "map"
             ? "Green cells are where you already agree."
-            : "Invite the others, then work through the steps together."}
+            : phase === "scipab"
+              ? "Your living document of record — re-draft anytime as things change."
+              : "Invite the others, then work through the steps together."}
         </p>
       </div>
     </div>
@@ -433,5 +601,83 @@ function Tab({
     >
       {children}
     </button>
+  );
+}
+
+/** Shown for the shared steps until everyone has shared their interests. */
+function LockedStep({
+  title,
+  parties,
+  readyByParty,
+  me,
+  meReady,
+  onGoShare,
+}: {
+  title: string;
+  parties: { id: string; displayName: string }[];
+  readyByParty: Record<string, boolean>;
+  me: string;
+  meReady: boolean;
+  onGoShare: () => void;
+}) {
+  const soloed = parties.length < 2;
+  return (
+    <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="text-lg">
+          🔒
+        </span>
+        <h2 className="text-lg font-medium text-stone-900">{title}</h2>
+      </div>
+      {soloed ? (
+        <p className="mt-2 text-sm text-stone-500">
+          You&apos;re the only one here so far. This step opens once someone else joins
+          and shares what matters to them — the whole point is to weigh and score each
+          other&apos;s interests, not just your own. Use{" "}
+          <strong>Invite others</strong> at the top to bring them in.
+        </p>
+      ) : (
+        <>
+          <p className="mt-2 text-sm text-stone-500">
+            This opens once <strong>everyone</strong> has shared their interests. Then
+            you&apos;ll weigh and score the whole group&apos;s interests together —
+            including theirs.
+          </p>
+          <ul className="mt-4 space-y-1.5">
+            {parties.map((p) => {
+              const ready = !!readyByParty[p.id];
+              return (
+                <li key={p.id} className="flex items-center gap-2 text-sm">
+                  <span>{ready ? "✓" : "⏳"}</span>
+                  <span className={ready ? "text-stone-700" : "text-stone-500"}>
+                    {p.displayName}
+                    {p.id === me ? " (you)" : ""}
+                  </span>
+                  <span className="text-xs text-stone-400">
+                    {ready ? "shared" : "still adding…"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {!meReady && (
+              <button
+                onClick={onGoShare}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Share my interests →
+              </button>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:border-stone-400"
+            >
+              Check for updates
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }

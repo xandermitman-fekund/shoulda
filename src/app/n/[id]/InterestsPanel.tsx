@@ -6,7 +6,6 @@ import type { InterestClassification } from "./interests-actions";
 export type Interest = {
   id: string;
   text: string;
-  points: number;
   mustHave: boolean;
 };
 
@@ -17,6 +16,7 @@ export default function InterestsPanel({
   interests,
   suggestions,
   suggesting,
+  submitted,
   onAdd,
   onEdit,
   onDelete,
@@ -24,11 +24,14 @@ export default function InterestsPanel({
   onSuggest,
   onAcceptSuggestion,
   onClassify,
+  onSubmit,
+  onReopen,
 }: {
   partyName: string;
   interests: Interest[];
   suggestions: string[];
   suggesting: boolean;
+  submitted: boolean;
   onAdd: (text: string) => void;
   onEdit: (id: string, text: string) => void;
   onDelete: (id: string) => void;
@@ -36,6 +39,8 @@ export default function InterestsPanel({
   onSuggest: () => void;
   onAcceptSuggestion: (text: string) => void;
   onClassify: (text: string) => Promise<InterestClassification>;
+  onSubmit: () => void;
+  onReopen: () => void;
 }) {
   const [newText, setNewText] = useState("");
   const [checking, setChecking] = useState(false);
@@ -68,6 +73,49 @@ export default function InterestsPanel({
     setNewText("");
     setNote(null);
   }
+
+  // Once shared, the list locks in. Editing requires re-opening it.
+  if (submitted) {
+    return (
+      <section className="space-y-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="font-medium text-emerald-900">
+            ✓ You&apos;ve shared what matters to you
+          </p>
+          <p className="mt-1 text-sm text-emerald-800">
+            The group can now see your interests. Once everyone has shared, you&apos;ll
+            weigh and score them together — including each other&apos;s.
+          </p>
+        </div>
+
+        <ul className="space-y-1">
+          {interests.map((i) => (
+            <li
+              key={i.id}
+              className="flex items-center gap-2 rounded-lg bg-stone-50 px-3 py-2 text-sm text-stone-700"
+            >
+              {i.mustHave && <span className="text-amber-600">★</span>}
+              <span>{i.text}</span>
+              {i.mustHave && (
+                <span className="text-xs font-medium text-amber-700">
+                  must-have
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <button
+          onClick={onReopen}
+          className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400"
+        >
+          Edit my interests
+        </button>
+      </section>
+    );
+  }
+
+  const canShare = interests.length >= 3 && interests.length <= 5;
 
   return (
     <section className="space-y-6 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -204,10 +252,23 @@ export default function InterestsPanel({
         </div>
         <p className="text-xs text-stone-400">
           {interests.length} of 3–5{interests.length > 5 ? " (too many)" : ""}
-          {interests.length >= 3 && (
-            <span className="text-emerald-600"> · ready for the Priorities step →</span>
-          )}
         </p>
+      </div>
+
+      {/* Share with the group — gates the shared steps */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 pt-4">
+        <p className="text-sm text-stone-500">
+          {canShare
+            ? "Ready? Share your interests so the group can move on together."
+            : "Add at least 3 interests, then share them with the group."}
+        </p>
+        <button
+          onClick={onSubmit}
+          disabled={!canShare}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+        >
+          Done — share my interests
+        </button>
       </div>
     </section>
   );

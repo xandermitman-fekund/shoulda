@@ -34,6 +34,8 @@ model Negotiation {
   ownerUserId  String
   owner        User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   inviteCode   String    @unique @default(cuid())
+  scipab       String? // JSON of the AI-drafted SCIPAB "document of record" (the agreement)
+  scipabAt     DateTime? // when the SCIPAB was last drafted
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -55,6 +57,7 @@ model Party {
   role           String   @default("participant") // owner | participant
   orderIndex     Int      @default(0)
   intakeComplete Boolean  @default(false)
+  interestsReady Boolean  @default(false) // party has shared their interests; gates the shared steps (priorities, scoring)
   createdAt      DateTime @default(now())
 
   interests      Interest[] // interests this party owns

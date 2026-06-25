@@ -2,8 +2,26 @@
 
 import { useEffect, useState } from "react";
 import type { ScoreState } from "./ScoringGrid";
+import type { Backer } from "./CaseWorkspace";
 
-type Interest = { id: string; text: string; points: number; mustHave: boolean };
+type Interest = {
+  id: string;
+  text: string;
+  points: number;
+  mustHave: boolean;
+  backers?: Backer[];
+};
+
+function Badge({ b }: { b: Backer }) {
+  return (
+    <span
+      title={`${b.name} is backing this`}
+      className={`inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-0.5 text-[10px] font-semibold ${b.color}`}
+    >
+      {b.initial}
+    </span>
+  );
+}
 type Option = { id: string; shortName: string };
 type Party = { id: string; displayName: string };
 
@@ -113,11 +131,13 @@ export default function NegotiationMap({
               className="sticky top-0 z-10 min-w-[7rem] max-w-[10rem] bg-white p-2 align-bottom text-left text-xs font-medium text-stone-600"
             >
               <div className="line-clamp-3">{i.text}</div>
-              <div className="mt-1 text-stone-400">
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-stone-400">
                 {i.mustHave ? (
                   <span className="font-medium text-amber-600">★ must-have</span>
+                ) : i.backers && i.backers.length > 0 ? (
+                  i.backers.map((b) => <Badge key={b.id} b={b} />)
                 ) : (
-                  `${i.points} pt${i.points === 1 ? "" : "s"}`
+                  <span className="text-stone-300">no points yet</span>
                 )}
               </div>
             </th>

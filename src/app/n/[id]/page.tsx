@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import CaseWorkspace from "./CaseWorkspace";
+import type { Scipab } from "./scipab-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,26 +42,31 @@ export default async function CasePage({
     id: p.id,
     displayName: p.displayName,
     role: p.role,
+    interestsReady: p.interestsReady,
   }));
 
   const intakeByParty: Record<string, { role: "user" | "assistant"; content: string }[]> = {};
-  const interestsByParty: Record<
-    string,
-    { id: string; text: string; points: number; mustHave: boolean }[]
-  > = {};
-
   for (const p of negotiation.parties) {
     intakeByParty[p.id] = p.intakeMessages.map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content,
     }));
-    interestsByParty[p.id] = p.interests.map((i) => ({
+  }
+
+  // One flat list of every interest. Authorship (ownerPartyId) is kept only for
+  // edit permissions — never exposed. A party's *association* with an interest is
+  // derived from points: backerIds = everyone who has put at least one point on it.
+  const allInterests = negotiation.parties.flatMap((p) =>
+    p.interests.map((i) => ({
       id: i.id,
       text: i.text,
-      points: i.points.find((pt) => pt.partyId === p.id)?.points ?? 0,
       mustHave: i.mustHave,
-    }));
-  }
+      ownerPartyId: p.id,
+      myPoints: i.points.find((pt) => pt.partyId === me.id)?.points ?? 0,
+      totalPoints: i.points.reduce((s, pt) => s + pt.points, 0),
+      backerIds: i.points.filter((pt) => pt.points > 0).map((pt) => pt.partyId),
+    })),
+  );
 
   const initialOptions = negotiation.options.map((o) => ({
     id: o.id,
@@ -78,6 +84,15 @@ export default async function CasePage({
     })),
   );
 
+  let initialScipab: Scipab | null = null;
+  if (negotiation.scipab) {
+    try {
+      initialScipab = JSON.parse(negotiation.scipab) as Scipab;
+    } catch {
+      initialScipab = null;
+    }
+  }
+
   return (
     <CaseWorkspace
       negotiationId={negotiation.id}
@@ -88,9 +103,10 @@ export default async function CasePage({
       currentPartyId={me.id}
       inviteCode={negotiation.inviteCode}
       intakeByParty={intakeByParty}
-      interestsByParty={interestsByParty}
+      allInterests={allInterests}
       initialOptions={initialOptions}
       initialScores={initialScores}
+      initialScipab={initialScipab}
     />
   );
 }

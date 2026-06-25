@@ -1,15 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Interest } from "./InterestsPanel";
+import type { Backer } from "./CaseWorkspace";
+
+export type PriorityInterest = {
+  id: string;
+  text: string;
+  mustHave: boolean;
+  myPoints: number;
+  otherBackers: Backer[];
+};
+
+function Badge({ b }: { b: Backer }) {
+  return (
+    <span
+      title={`${b.name} is backing this`}
+      className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-semibold ${b.color}`}
+    >
+      {b.initial}
+    </span>
+  );
+}
 
 export default function PrioritiesPanel({
   partyName,
   interests,
+  myBadge,
   onSavePoints,
 }: {
   partyName: string;
-  interests: Interest[];
+  interests: PriorityInterest[];
+  myBadge: Backer;
   onSavePoints: (
     allocs: { interestId: string; points: number }[],
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -18,7 +39,7 @@ export default function PrioritiesPanel({
   const pointable = interests.filter((i) => !i.mustHave);
 
   const [points, setPoints] = useState<Record<string, number>>(() =>
-    Object.fromEntries(pointable.map((i) => [i.id, i.points])),
+    Object.fromEntries(pointable.map((i) => [i.id, i.myPoints])),
   );
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -26,22 +47,12 @@ export default function PrioritiesPanel({
   useEffect(() => {
     setPoints((prev) => {
       const next: Record<string, number> = {};
-      for (const i of pointable) next[i.id] = prev[i.id] ?? i.points;
+      for (const i of pointable) next[i.id] = prev[i.id] ?? i.myPoints;
       return next;
     });
     setSaveMsg("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
-
-  if (interests.length < 3) {
-    return (
-      <section className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-500 shadow-sm">
-        Add at least 3 interests in the{" "}
-        <strong className="text-stone-700">What matters</strong> step first, then
-        come back here to set {partyName}&apos;s priorities.
-      </section>
-    );
-  }
 
   const total = pointable.reduce((s, i) => s + (points[i.id] ?? 0), 0);
 
@@ -60,11 +71,33 @@ export default function PrioritiesPanel({
     setSaveMsg(r.ok ? "Saved ✓" : r.error ?? "Could not save.");
   }
 
+  // Badges for one interest: who else is backing it + you, live, if you've put a point on it.
+  function badges(i: PriorityInterest, mine: boolean) {
+    return (
+      <span className="flex shrink-0 items-center gap-1">
+        {i.otherBackers.map((b) => (
+          <Badge key={b.id} b={b} />
+        ))}
+        {mine && <Badge b={myBadge} />}
+      </span>
+    );
+  }
+
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-medium text-stone-900">
-        What matters most to {partyName}?
+        What matters — to everyone
       </h2>
+      <p className="mt-1 text-sm text-stone-500">
+        These are all the interests on the table — no labels for who suggested what.
+        Spend <strong>10 points</strong> on the ones that matter to you, including the
+        others&apos;. Your badge{" "}
+        <span className="align-middle">
+          <Badge b={myBadge} />
+        </span>{" "}
+        appears on each interest you back — take your points off to step away from it.
+        Where badges stack up is your <strong>common ground</strong>.
+      </p>
 
       {/* Must-haves: top priority, no points */}
       {mustHaves.length > 0 && (
@@ -79,7 +112,8 @@ export default function PrioritiesPanel({
                 className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-stone-700"
               >
                 <span className="text-amber-600">★</span>
-                {i.text}
+                <span className="flex-1">{i.text}</span>
+                {badges(i, false)}
               </li>
             ))}
           </ul>
@@ -93,19 +127,16 @@ export default function PrioritiesPanel({
       {/* Points allocator over the non-must-have interests */}
       {pointable.length === 0 ? (
         <p className="mt-5 text-sm text-stone-500">
-          All of your interests are must-haves — nothing left to weigh. You&apos;re
-          set for this step.
+          Every interest on the table is a must-have — nothing left to weigh.
+          You&apos;re set for this step.
         </p>
       ) : (
         <>
-          <p className="mt-5 text-sm text-stone-500">
-            Spend <strong>10 points</strong> across the rest — give more to what
-            matters more.
-          </p>
-          <div className="mt-3 space-y-2">
+          <div className="mt-5 space-y-2">
             {pointable.map((i) => (
               <div key={i.id} className="flex items-center gap-3">
                 <span className="flex-1 text-sm text-stone-700">{i.text}</span>
+                {badges(i, (points[i.id] ?? 0) > 0)}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => bump(i.id, -1)}

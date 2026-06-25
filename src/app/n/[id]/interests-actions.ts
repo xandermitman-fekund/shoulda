@@ -60,7 +60,29 @@ export async function setMustHave(interestId: string, mustHave: boolean) {
   return { id: interestId, mustHave };
 }
 
-/** Save the caller's 10-point allocation across their own interests. */
+/** Mark the caller's interests as shared with the group. Gates the shared steps until everyone has shared. */
+export async function submitInterests(negotiationId: string) {
+  const party = await requireParty(negotiationId);
+  if (!party) return { ok: false as const };
+  await prisma.party.update({
+    where: { id: party.id },
+    data: { interestsReady: true },
+  });
+  return { ok: true as const };
+}
+
+/** Re-open the caller's interests for editing (un-share). */
+export async function reopenInterests(negotiationId: string) {
+  const party = await requireParty(negotiationId);
+  if (!party) return { ok: false as const };
+  await prisma.party.update({
+    where: { id: party.id },
+    data: { interestsReady: false },
+  });
+  return { ok: true as const };
+}
+
+/** Save the caller's 10-point allocation across *everyone's* interests (their own + the others'). */
 export async function saveInterestPoints(
   negotiationId: string,
   allocations: { interestId: string; points: number }[],
