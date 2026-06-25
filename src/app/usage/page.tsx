@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,12 @@ function usd(n: number): string {
   return `$${n.toFixed(n < 1 ? 4 : 2)}`;
 }
 
+// Opaque, stable handle for a negotiation you're not part of — derived from its
+// unique ID (not its title), so it reveals nothing about the content.
+function privacyTag(id: string): string {
+  return createHash("sha256").update(id).digest("hex").slice(0, 8);
+}
+
 export default async function UsagePage() {
   const user = await getOrCreateUser();
   if (!user) redirect("/sign-in");
@@ -19,7 +26,11 @@ export default async function UsagePage() {
   const [negotiations, calls] = await Promise.all([
     prisma.negotiation.findMany({
       orderBy: { createdAt: "desc" },
-      include: { owner: true, _count: { select: { parties: true } } },
+      include: {
+        owner: true,
+        parties: { select: { userId: true } },
+        _count: { select: { parties: true } },
+      },
     }),
     prisma.aiCall.findMany({
       select: { negotiationId: true, costUsd: true, createdAt: true },
@@ -57,7 +68,9 @@ export default async function UsagePage() {
     .map((n) => {
       const a =
         agg.get(n.id) ?? { calls: 0, cost: 0, monthCost: 0, lastAt: null };
-      return { neg: n, ...a };
+      // You can only see a title for a negotiation you're actually part of.
+      const mine = n.parties.some((p) => p.userId === user.id);
+      return { neg: n, mine, ...a };
     })
     .sort((x, y) => y.cost - x.cost);
 
@@ -126,18 +139,27 @@ export default async function UsagePage() {
                   </td>
                 </tr>
               ) : (
-                rows.map(({ neg, calls, cost, monthCost, lastAt }) => (
+                rows.map(({ neg, mine, calls, cost, monthCost, lastAt }) => (
                   <tr
                     key={neg.id}
                     className="border-b border-stone-100 last:border-0 hover:bg-stone-50"
                   >
                     <td className="p-3">
-                      <Link
-                        href={`/n/${neg.id}`}
-                        className="font-medium text-stone-900 hover:text-emerald-700"
-                      >
-                        {neg.label}
-                      </Link>
+                      {mine ? (
+                        <Link
+                          href={`/n/${neg.id}`}
+                          className="font-medium text-stone-900 hover:text-emerald-700"
+                        >
+                          {neg.label}
+                        </Link>
+                      ) : (
+                        <span
+                          className="font-mono text-stone-400"
+                          title="A negotiation you're not part of — title hidden for privacy"
+                        >
+                          Private · {privacyTag(neg.id)}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-stone-600">
                       <div>{neg.owner.displayName}</div>
