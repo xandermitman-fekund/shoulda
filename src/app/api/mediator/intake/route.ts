@@ -14,7 +14,11 @@ export const dynamic = "force-dynamic";
  * The caller's party is derived from their auth session — not from the client.
  */
 export async function POST(req: Request) {
-  let body: { negotiationId?: string; message?: string };
+  let body: {
+    negotiationId?: string;
+    message?: string;
+    image?: { type?: string; data?: string };
+  };
   try {
     body = await req.json();
   } catch {
@@ -23,8 +27,17 @@ export async function POST(req: Request) {
 
   const negotiationId = String(body.negotiationId ?? "");
   const message = String(body.message ?? "").trim();
-  if (!negotiationId || !message) {
-    return new Response("negotiationId and message are required", { status: 400 });
+  const image =
+    body.image && body.image.data
+      ? {
+          type: String(body.image.type ?? "image/jpeg"),
+          data: String(body.image.data),
+        }
+      : null;
+  if (!negotiationId || (!message && !image)) {
+    return new Response("negotiationId and a message or image are required", {
+      status: 400,
+    });
   }
 
   const base = await requireParty(negotiationId);
@@ -58,11 +71,32 @@ export async function POST(req: Request) {
     role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
     content: m.content,
   }));
-  history.push({ role: "user", content: message });
 
-  // Persist the user's message now.
+  // The new turn may carry an image; past turns are sent as text only (cost-bounded).
+  const newContent = image
+    ? [
+        {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: image.type,
+            data: image.data,
+          },
+        },
+        ...(message ? [{ type: "text" as const, text: message }] : []),
+      ]
+    : message;
+  const messages = [...history, { role: "user" as const, content: newContent }];
+
+  // Persist the user's message now (with the image, if any).
   await prisma.intakeMessage.create({
-    data: { partyId, role: "user", content: message },
+    data: {
+      partyId,
+      role: "user",
+      content: message,
+      imageType: image?.type ?? null,
+      imageData: image?.data ?? null,
+    },
   });
 
   const system = intakeSystemPrompt(party.displayName, party.negotiation.label);
@@ -71,8 +105,8 @@ export async function POST(req: Request) {
     model: MEDIATOR_MODEL,
     max_tokens: 2048,
     system,
-    messages: history,
-  });
+    messages,
+  } as Parameters<typeof anthropic.messages.stream>[0]);
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream<Uint8Array>({

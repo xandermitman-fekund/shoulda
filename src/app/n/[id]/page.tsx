@@ -45,11 +45,21 @@ export default async function CasePage({
     interestsReady: p.interestsReady,
   }));
 
-  const intakeByParty: Record<string, { role: "user" | "assistant"; content: string }[]> = {};
+  const intakeByParty: Record<
+    string,
+    {
+      role: "user" | "assistant";
+      content: string;
+      imageType?: string;
+      imageData?: string;
+    }[]
+  > = {};
   for (const p of negotiation.parties) {
     intakeByParty[p.id] = p.intakeMessages.map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content,
+      imageType: m.imageType ?? undefined,
+      imageData: m.imageData ?? undefined,
     }));
   }
 

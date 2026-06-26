@@ -152,6 +152,8 @@ model IntakeMessage {
   party     Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
   role      String // user | assistant
   content   String
+  imageType String? // media type of an attached image, e.g. "image/jpeg"
+  imageData String? // base64 (no data: prefix) of an attached image
   createdAt DateTime @default(now())
 }
 

@@ -200,18 +200,26 @@ export default function CaseWorkspace({
     setMsgs((prev) => ({ ...prev, [me]: updater(prev[me] ?? []) }));
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(
+    text: string,
+    image?: { type: string; data: string },
+  ) {
     setStreaming(true);
     updateMsgs((prev) => [
       ...prev,
-      { role: "user", content: text },
+      {
+        role: "user",
+        content: text,
+        imageType: image?.type,
+        imageData: image?.data,
+      },
       { role: "assistant", content: "" },
     ]);
     try {
       const res = await fetch("/api/mediator/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ negotiationId, message: text }),
+        body: JSON.stringify({ negotiationId, message: text, image }),
       });
       if (!res.ok || !res.body) throw new Error("Request failed");
       const reader = res.body.getReader();
