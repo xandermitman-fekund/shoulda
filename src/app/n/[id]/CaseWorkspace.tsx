@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import IntakeChat, { type Msg } from "./IntakeChat";
 import InterestsPanel from "./InterestsPanel";
 import PrioritiesPanel from "./PrioritiesPanel";
@@ -23,6 +23,7 @@ import ScipabPanel from "./ScipabPanel";
 import { createOption, deleteOption, suggestOptions } from "./options-actions";
 import { setScore } from "./scoring-actions";
 import { draftScipab, type Scipab } from "./scipab-actions";
+import { pollState } from "./sync-actions";
 
 type Party = { id: string; displayName: string; role: string; interestsReady: boolean };
 type Phase =
@@ -66,12 +67,23 @@ type ScoreSeed = {
   na: boolean;
 };
 
+function buildScoreMap(seeds: ScoreSeed[]): Record<string, ScoreState> {
+  const m: Record<string, ScoreState> = {};
+  for (const s of seeds ?? []) {
+    m[`${s.partyId}|${s.optionId}|${s.interestId}`] = {
+      value: s.value,
+      na: s.na,
+    };
+  }
+  return m;
+}
+
 export default function CaseWorkspace({
   negotiationId,
   caseLabel,
   status,
   description,
-  parties,
+  parties: initialParties,
   currentPartyId,
   inviteCode,
   intakeByParty,
@@ -95,6 +107,7 @@ export default function CaseWorkspace({
 }) {
   // You are always your own party — no actor switching.
   const me = currentPartyId;
+  const [parties, setParties] = useState<Party[]>(initialParties);
   const [phase, setPhase] = useState<Phase>("intake");
 
   const [msgs, setMsgs] = useState<Record<string, Msg[]>>(intakeByParty);
@@ -115,20 +128,67 @@ export default function CaseWorkspace({
   >([]);
   const [suggestingOptions, setSuggestingOptions] = useState(false);
 
-  const [scores, setScores] = useState<Record<string, ScoreState>>(() => {
-    const m: Record<string, ScoreState> = {};
-    for (const s of initialScores ?? []) {
-      m[`${s.partyId}|${s.optionId}|${s.interestId}`] = {
-        value: s.value,
-        na: s.na,
-      };
-    }
-    return m;
-  });
+  const [scores, setScores] = useState<Record<string, ScoreState>>(() =>
+    buildScoreMap(initialScores),
+  );
 
   const [scipab, setScipab] = useState<Scipab | null>(initialScipab);
   const [draftingScipab, setDraftingScipab] = useState(false);
   const [scipabError, setScipabError] = useState("");
+
+  // ---- Live sync: poll the shared board and merge in everyone else's changes ----
+  const lastSync = useRef<string>("");
+  useEffect(() => {
+    let active = true;
+    async function tick() {
+      if (typeof document !== "undefined" && document.hidden) return;
+      let result: Awaited<ReturnType<typeof pollState>>;
+      try {
+        result = await pollState(negotiationId);
+      } catch {
+        return;
+      }
+      if (!active || !result) return;
+      const data = result;
+      const snap = JSON.stringify({
+        parties: data.parties,
+        allInterests: data.allInterests,
+        options: data.options,
+        scores: data.scores,
+        scipab: data.scipab,
+      });
+      if (snap === lastSync.current) return; // nothing changed — skip the churn
+      lastSync.current = snap;
+
+      setParties(data.parties);
+      // Keep my own readiness local (optimistic + authoritative for me).
+      setReadyByParty((prev) => {
+        const next: Record<string, boolean> = {};
+        for (const p of data.parties)
+          next[p.id] =
+            p.id === me ? (prev[p.id] ?? p.interestsReady) : p.interestsReady;
+        return next;
+      });
+      setInterests(data.allInterests);
+      setOptions(data.options);
+      // My scores are write-through — keep mine local, take everyone else's from the server.
+      setScores((prev) => {
+        const next = buildScoreMap(data.scores);
+        for (const key of Object.keys(next))
+          if (key.split("|")[0] === me) delete next[key];
+        for (const key of Object.keys(prev))
+          if (key.split("|")[0] === me) next[key] = prev[key];
+        return next;
+      });
+      setScipab(data.scipab);
+    }
+    const id = setInterval(tick, 5000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [negotiationId, me]);
 
   const self = parties.find((p) => p.id === me);
   const others = parties.filter((p) => p.id !== me);
@@ -444,12 +504,24 @@ export default function CaseWorkspace({
               <> · no one else has joined yet</>
             )}
           </p>
-          <button
-            onClick={copyInvite}
-            className="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
-          >
-            {copied ? "Invite link copied ✓" : "Invite others"}
-          </button>
+          <div className="flex items-center gap-3">
+            <span
+              className="flex items-center gap-1.5 text-xs text-stone-400"
+              title="This board updates automatically as everyone makes changes."
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Live
+            </span>
+            <button
+              onClick={copyInvite}
+              className="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              {copied ? "Invite link copied ✓" : "Invite others"}
+            </button>
+          </div>
         </div>
 
         {/* Phase tabs */}
