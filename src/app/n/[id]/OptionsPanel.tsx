@@ -12,6 +12,7 @@ export default function OptionsPanel({
   onDelete,
   onSuggest,
   onAcceptSuggestion,
+  onDismissSuggestion,
 }: {
   options: Option[];
   suggestions: { shortName: string; description: string }[];
@@ -20,6 +21,7 @@ export default function OptionsPanel({
   onDelete: (id: string) => void;
   onSuggest: () => void;
   onAcceptSuggestion: (shortName: string, description: string) => void;
+  onDismissSuggestion: (index: number) => void;
 }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -66,12 +68,24 @@ export default function OptionsPanel({
                       {s.description}
                     </p>
                   </div>
-                  <button
-                    onClick={() => onAcceptSuggestion(s.shortName, s.description)}
-                    className="shrink-0 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                  >
-                    + Add
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => {
+                        onAcceptSuggestion(s.shortName, s.description);
+                        onDismissSuggestion(i);
+                      }}
+                      className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+                    >
+                      + Add
+                    </button>
+                    <button
+                      onClick={() => onDismissSuggestion(i)}
+                      title="Dismiss this suggestion"
+                      className="rounded-md px-2 py-1 text-xs font-medium text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

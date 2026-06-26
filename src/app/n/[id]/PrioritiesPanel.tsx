@@ -41,6 +41,10 @@ export default function PrioritiesPanel({
   const [points, setPoints] = useState<Record<string, number>>(() =>
     Object.fromEntries(pointable.map((i) => [i.id, i.myPoints])),
   );
+  // Last-saved baseline (server truth), so we know when there's nothing to save.
+  const [savedPoints, setSavedPoints] = useState<Record<string, number>>(() =>
+    Object.fromEntries(pointable.map((i) => [i.id, i.myPoints])),
+  );
   const [saveMsg, setSaveMsg] = useState("");
 
   const ids = pointable.map((i) => i.id).join(",");
@@ -50,11 +54,17 @@ export default function PrioritiesPanel({
       for (const i of pointable) next[i.id] = prev[i.id] ?? i.myPoints;
       return next;
     });
+    setSavedPoints(Object.fromEntries(pointable.map((i) => [i.id, i.myPoints])));
     setSaveMsg("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
 
   const total = pointable.reduce((s, i) => s + (points[i.id] ?? 0), 0);
+  const over = total > 10;
+  const overBy = total - 10;
+  const dirty = pointable.some(
+    (i) => (points[i.id] ?? 0) !== (savedPoints[i.id] ?? 0),
+  );
 
   function bump(id: string, delta: number) {
     setPoints((p) => {
@@ -68,7 +78,12 @@ export default function PrioritiesPanel({
     const r = await onSavePoints(
       pointable.map((i) => ({ interestId: i.id, points: points[i.id] ?? 0 })),
     );
-    setSaveMsg(r.ok ? "Saved ✓" : r.error ?? "Could not save.");
+    if (r.ok) {
+      setSavedPoints({ ...points });
+      setSaveMsg("");
+    } else {
+      setSaveMsg(r.error ?? "Could not save.");
+    }
   }
 
   // Badges for one interest: who else is backing it + you, live, if you've put a point on it.
@@ -90,8 +105,8 @@ export default function PrioritiesPanel({
       </h2>
       <p className="mt-1 text-sm text-stone-500">
         These are all the interests on the table — no labels for who suggested what.
-        Spend <strong>10 points</strong> on the ones that matter to you, including the
-        others&apos;. Your badge{" "}
+        Spend <strong>up to 10 points</strong> on the ones that matter to you,
+        including the others&apos;. Your badge{" "}
         <span className="align-middle">
           <Badge b={myBadge} />
         </span>{" "}
@@ -161,16 +176,21 @@ export default function PrioritiesPanel({
           <div className="mt-4 flex items-center justify-between">
             <span
               className={`text-sm font-medium ${
-                total === 10 ? "text-emerald-700" : "text-stone-500"
+                over ? "text-red-600" : "text-stone-500"
               }`}
             >
               {total} / 10 points used
+              {over && ` — remove ${overBy} to save`}
             </span>
             <div className="flex items-center gap-3">
-              {saveMsg && <span className="text-sm text-stone-500">{saveMsg}</span>}
+              {saveMsg ? (
+                <span className="text-sm text-red-600">{saveMsg}</span>
+              ) : !dirty ? (
+                <span className="text-sm text-stone-400">Saved ✓</span>
+              ) : null}
               <button
                 onClick={save}
-                disabled={total !== 10}
+                disabled={over || !dirty}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
               >
                 Save priorities

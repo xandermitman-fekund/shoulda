@@ -572,7 +572,13 @@ export default function CaseWorkspace({
             onDelete={handleDeleteInterest}
             onToggleMustHave={handleToggleMustHave}
             onSuggest={handleSuggest}
-            onAcceptSuggestion={(text) => handleAdd(text)}
+            onAcceptSuggestion={(text) => {
+              handleAdd(text);
+              setSuggestionsByParty((prev) => ({
+                ...prev,
+                [me]: (prev[me] ?? []).filter((s) => s !== text),
+              }));
+            }}
             onClassify={handleClassify}
             onSubmit={handleSubmitInterests}
             onReopen={handleReopenInterests}
@@ -607,6 +613,9 @@ export default function CaseWorkspace({
             onDelete={handleDeleteOption}
             onSuggest={handleSuggestOptions}
             onAcceptSuggestion={(name, desc) => handleAddOption(name, desc)}
+            onDismissSuggestion={(i) =>
+              setOptionSuggestions((prev) => prev.filter((_, idx) => idx !== i))
+            }
           />
         )}
 

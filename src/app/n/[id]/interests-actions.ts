@@ -95,8 +95,8 @@ export async function saveInterestPoints(
   if (!party) return { ok: false as const, error: "You're not a participant." };
 
   const sum = allocations.reduce((s, a) => s + a.points, 0);
-  if (sum !== 10) {
-    return { ok: false as const, error: "Points must add up to exactly 10." };
+  if (sum > 10) {
+    return { ok: false as const, error: "Points can add up to at most 10." };
   }
   if (allocations.some((a) => a.points < 0 || a.points > 10)) {
     return { ok: false as const, error: "Each interest can have 0–10 points." };

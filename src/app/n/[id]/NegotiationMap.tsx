@@ -130,7 +130,9 @@ export default function NegotiationMap({
               key={i.id}
               className="sticky top-0 z-10 min-w-[7rem] max-w-[10rem] bg-white p-2 align-bottom text-left text-xs font-medium text-stone-600"
             >
-              <div className="line-clamp-3">{i.text}</div>
+              <div className="line-clamp-3" title={i.text}>
+                {i.text}
+              </div>
               <div className="mt-1 flex flex-wrap items-center gap-1 text-stone-400">
                 {i.mustHave ? (
                   <span className="font-medium text-amber-600">★ must-have</span>
@@ -148,7 +150,9 @@ export default function NegotiationMap({
         {options.map((o) => (
           <tr key={o.id} className="border-t border-stone-100">
             <th className="sticky left-0 z-10 max-w-[12rem] bg-white p-2 text-left text-sm font-medium text-stone-700">
-              <div className="line-clamp-2">{o.shortName}</div>
+              <div className="line-clamp-2" title={o.shortName}>
+                {o.shortName}
+              </div>
             </th>
             {interests.map((i) => {
               const states = parties.map((p) => getScore(p.id, o.id, i.id));

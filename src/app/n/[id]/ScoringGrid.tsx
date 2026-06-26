@@ -61,7 +61,9 @@ export default function ScoringGrid({
                   key={i.id}
                   className="min-w-[7.5rem] max-w-[10rem] p-2 align-bottom text-left text-xs font-medium text-stone-600"
                 >
-                  <div className="line-clamp-3">{i.text}</div>
+                  <div className="line-clamp-3" title={i.text}>
+                    {i.text}
+                  </div>
                   <div className="mt-1 text-stone-400">
                     {i.mustHave ? (
                       <span className="font-medium text-amber-600">★ must-have</span>
@@ -76,8 +78,10 @@ export default function ScoringGrid({
           <tbody>
             {options.map((o) => (
               <tr key={o.id} className="border-t border-stone-100">
-                <th className="max-w-[12rem] p-2 text-left text-sm font-medium text-stone-700">
-                  <div className="line-clamp-2">{o.shortName}</div>
+                <th className="min-w-[10rem] max-w-[16rem] p-2 text-left text-sm font-medium text-stone-700">
+                  <div className="line-clamp-2" title={o.shortName}>
+                    {o.shortName}
+                  </div>
                 </th>
                 {interests.map((i) => {
                   const s = getScore(o.id, i.id);
