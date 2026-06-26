@@ -7,7 +7,7 @@ import InterestsPanel from "./InterestsPanel";
 import PrioritiesPanel from "./PrioritiesPanel";
 import OptionsPanel, { type Option } from "./OptionsPanel";
 import ScoringGrid, { type ScoreState } from "./ScoringGrid";
-import NegotiationMap from "./NegotiationMap";
+import MapWorkspace from "./MapWorkspace";
 import {
   createInterest,
   updateInterest,
@@ -20,7 +20,12 @@ import {
   classifyInterest,
 } from "./interests-actions";
 import ScipabPanel from "./ScipabPanel";
-import { createOption, deleteOption, suggestOptions } from "./options-actions";
+import {
+  createOption,
+  updateOption,
+  deleteOption,
+  suggestOptions,
+} from "./options-actions";
 import { setScore } from "./scoring-actions";
 import { draftScipab, type Scipab } from "./scipab-actions";
 import { pollState } from "./sync-actions";
@@ -235,12 +240,23 @@ export default function CaseWorkspace({
     otherBackers: i.backerIds.filter((id) => id !== me).map(badgeFor),
   }));
 
-  // Everyone's interests ranked by combined points, for scoring + the map.
+  // Everyone's interests ranked by combined points, for the read-only scoring grid.
   const gridInterests = sortInterests(interests).map((i) => ({
     id: i.id,
     text: i.text,
     mustHave: i.mustHave,
     points: i.totalPoints,
+    backers: i.backerIds.map(badgeFor),
+  }));
+
+  // Everyone's interests for the editable map workspace.
+  const mapInterests = interests.map((i) => ({
+    id: i.id,
+    text: i.text,
+    mustHave: i.mustHave,
+    isMine: i.ownerPartyId === me,
+    myPoints: i.myPoints,
+    totalPoints: i.totalPoints,
     backers: i.backerIds.map(badgeFor),
   }));
 
@@ -377,6 +393,18 @@ export default function CaseWorkspace({
     return r;
   }
 
+  // Set my points on a single interest from the map (rebuilds the full allocation).
+  async function handleSetInterestPoints(id: string, points: number) {
+    const allocs = interests
+      .filter((i) => !i.mustHave)
+      .map((i) => ({
+        interestId: i.id,
+        points: i.id === id ? Math.max(0, Math.min(10, points)) : i.myPoints,
+      }));
+    if (allocs.reduce((s, a) => s + a.points, 0) > 10) return;
+    await handleSavePoints(allocs);
+  }
+
   async function handleSubmitInterests() {
     setReadyByParty((prev) => ({ ...prev, [me]: true }));
     await submitInterests(negotiationId);
@@ -410,6 +438,22 @@ export default function CaseWorkspace({
   async function handleDeleteOption(id: string) {
     await deleteOption(id);
     setOptions((prev) => prev.filter((o) => o.id !== id));
+  }
+
+  async function handleEditOption(
+    id: string,
+    shortName: string,
+    description: string,
+  ) {
+    const r = await updateOption(id, shortName, description);
+    if (r)
+      setOptions((prev) =>
+        prev.map((o) =>
+          o.id === id
+            ? { ...o, shortName: r.shortName, description: r.description }
+            : o,
+        ),
+      );
   }
 
   async function handleSuggestOptions() {
@@ -640,11 +684,22 @@ export default function CaseWorkspace({
           ))}
 
         {phase === "map" && (
-          <NegotiationMap
-            interests={gridInterests}
-            options={sortedOptions}
+          <MapWorkspace
+            me={me}
             parties={parties}
+            interests={mapInterests}
+            options={sortedOptions}
+            scoringLocked={!allReady}
             getScore={getScore}
+            onAddInterest={handleAdd}
+            onEditInterest={handleEditInterest}
+            onDeleteInterest={handleDeleteInterest}
+            onToggleMustHave={handleToggleMustHave}
+            onSetPoints={handleSetInterestPoints}
+            onAddOption={(name, desc) => handleAddOption(name, desc)}
+            onEditOption={handleEditOption}
+            onDeleteOption={handleDeleteOption}
+            onSetScore={handleSetScore}
           />
         )}
 

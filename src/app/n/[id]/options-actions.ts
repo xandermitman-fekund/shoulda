@@ -40,6 +40,26 @@ export async function createOption(
   };
 }
 
+/** Edit an option's name/description. Any participant may, for now. */
+export async function updateOption(
+  optionId: string,
+  shortName: string,
+  description: string,
+) {
+  const option = await prisma.option.findUnique({ where: { id: optionId } });
+  if (!option) return null;
+  const party = await requireParty(option.negotiationId);
+  if (!party) return null;
+  const sn = shortName.trim().slice(0, 100);
+  if (!sn) return null;
+  const desc = description.trim().slice(0, 4000);
+  await prisma.option.update({
+    where: { id: optionId },
+    data: { shortName: sn, description: desc },
+  });
+  return { id: optionId, shortName: sn, description: desc };
+}
+
 /** Remove an option. Any participant may, for now (the decks reserve this for the mediator). */
 export async function deleteOption(optionId: string) {
   const option = await prisma.option.findUnique({ where: { id: optionId } });
