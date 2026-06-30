@@ -1,21 +1,15 @@
-import { createHash } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import { isAdminEmail } from "@/lib/admin";
+import { negotiationRef } from "@/lib/ref";
 import { addToAllowlist, removeFromAllowlist } from "./access-actions";
 
 export const dynamic = "force-dynamic";
 
 function usd(n: number): string {
   return `$${n.toFixed(n < 1 ? 4 : 2)}`;
-}
-
-// Opaque, stable handle for a negotiation you're not part of — derived from its
-// unique ID (not its title), so it reveals nothing about the content.
-function privacyTag(id: string): string {
-  return createHash("sha256").update(id).digest("hex").slice(0, 8);
 }
 
 export default async function UsagePage() {
@@ -28,7 +22,6 @@ export default async function UsagePage() {
       orderBy: { createdAt: "desc" },
       include: {
         owner: true,
-        parties: { select: { userId: true } },
         _count: { select: { parties: true } },
       },
     }),
@@ -68,9 +61,7 @@ export default async function UsagePage() {
     .map((n) => {
       const a =
         agg.get(n.id) ?? { calls: 0, cost: 0, monthCost: 0, lastAt: null };
-      // You can only see a title for a negotiation you're actually part of.
-      const mine = n.parties.some((p) => p.userId === user.id);
-      return { neg: n, mine, ...a };
+      return { neg: n, ...a };
     })
     .sort((x, y) => y.cost - x.cost);
 
@@ -105,7 +96,8 @@ export default async function UsagePage() {
             Usage &amp; cost
           </h1>
           <p className="mt-1 text-stone-500">
-            Every negotiation and what it&apos;s costing you in AI (operator view).
+            Every negotiation and what it&apos;s costing you in AI. Titles are hidden
+            — each row shows a stable reference code that participants can see too.
           </p>
         </header>
 
@@ -139,27 +131,18 @@ export default async function UsagePage() {
                   </td>
                 </tr>
               ) : (
-                rows.map(({ neg, mine, calls, cost, monthCost, lastAt }) => (
+                rows.map(({ neg, calls, cost, monthCost, lastAt }) => (
                   <tr
                     key={neg.id}
                     className="border-b border-stone-100 last:border-0 hover:bg-stone-50"
                   >
                     <td className="p-3">
-                      {mine ? (
-                        <Link
-                          href={`/n/${neg.id}`}
-                          className="font-medium text-stone-900 hover:text-emerald-700"
-                        >
-                          {neg.label}
-                        </Link>
-                      ) : (
-                        <span
-                          className="font-mono text-stone-400"
-                          title="A negotiation you're not part of — title hidden for privacy"
-                        >
-                          Private · {privacyTag(neg.id)}
-                        </span>
-                      )}
+                      <span
+                        className="font-mono text-stone-500"
+                        title="Stable reference — titles are hidden from the operator view; participants see this same code"
+                      >
+                        {negotiationRef(neg.id)}
+                      </span>
                     </td>
                     <td className="p-3 text-stone-600">
                       <div>{neg.owner.displayName}</div>

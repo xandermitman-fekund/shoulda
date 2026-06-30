@@ -30,6 +30,7 @@ import {
 import { setScore } from "./scoring-actions";
 import { draftScipab, type Scipab } from "./scipab-actions";
 import { pollState } from "./sync-actions";
+import { negotiationRef } from "@/lib/ref";
 
 type Party = { id: string; displayName: string; role: string; interestsReady: boolean };
 type Phase =
@@ -548,6 +549,12 @@ export default function CaseWorkspace({
             </span>
           </div>
           {description && <p className="mt-2 text-stone-600">{description}</p>}
+          <p
+            className="mt-2 font-mono text-xs text-stone-400"
+            title="Reference code — what the operator sees instead of your title (your title stays private to participants)"
+          >
+            ref {negotiationRef(negotiationId)}
+          </p>
         </header>
 
         {/* Participants + invite */}
