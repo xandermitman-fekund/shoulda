@@ -13,7 +13,12 @@ export type MapInterest = {
   totalPoints: number;
   backers: Backer[];
 };
-export type MapOption = { id: string; shortName: string; description: string };
+export type MapOption = {
+  id: string;
+  shortName: string;
+  description: string;
+  goState: "go" | "no_go" | null;
+};
 type Party = { id: string; displayName: string };
 
 const BALLS = ["○", "◔", "◑", "◕", "●"];
@@ -81,6 +86,7 @@ export default function MapWorkspace({
   onAddOption,
   onEditOption,
   onDeleteOption,
+  onSetGoState,
   onSetScore,
 }: {
   me: string;
@@ -97,12 +103,14 @@ export default function MapWorkspace({
   onAddOption: (shortName: string, description: string) => void;
   onEditOption: (id: string, shortName: string, description: string) => void;
   onDeleteOption: (id: string) => void;
+  onSetGoState: (id: string, goState: "go" | "no_go" | null) => void;
   onSetScore: (optionId: string, interestId: string, next: ScoreState | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [newInterest, setNewInterest] = useState("");
   const [newOptName, setNewOptName] = useState("");
   const [newOptDesc, setNewOptDesc] = useState("");
+  const [showHidden, setShowHidden] = useState(false);
 
   useEffect(() => {
     if (!expanded) return;
@@ -119,6 +127,10 @@ export default function MapWorkspace({
     .filter((i) => !i.mustHave)
     .reduce((s, i) => s + i.myPoints, 0);
   const others = parties.filter((p) => p.id !== me);
+  const hiddenCount = options.filter((o) => o.goState === "no_go").length;
+  const visibleOptions = showHidden
+    ? options
+    : options.filter((o) => o.goState !== "no_go");
 
   function addInterest() {
     const t = newInterest.trim();
@@ -202,6 +214,14 @@ export default function MapWorkspace({
           + Idea
         </button>
       </form>
+      {hiddenCount > 0 && (
+        <button
+          onClick={() => setShowHidden((s) => !s)}
+          className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
+        >
+          {showHidden ? "Hide no-go'd" : `Show hidden (${hiddenCount})`}
+        </button>
+      )}
     </div>
   );
 
@@ -291,8 +311,12 @@ export default function MapWorkspace({
   }
 
   function optionRow(o: MapOption) {
+    const isNoGo = o.goState === "no_go";
     return (
-      <tr key={o.id} className="border-t border-stone-100">
+      <tr
+        key={o.id}
+        className={`border-t border-stone-100 ${isNoGo ? "opacity-60" : ""}`}
+      >
         <th className="sticky left-0 z-10 min-w-[12rem] max-w-[15rem] bg-white p-2 text-left align-top">
           <div className="flex items-start gap-1">
             <div className="flex-1">
@@ -314,13 +338,41 @@ export default function MapWorkspace({
                 className="mt-0.5 w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-stone-500 hover:border-stone-200 focus:border-emerald-400 focus:bg-white focus:outline-none"
               />
             </div>
-            <button
-              onClick={() => onDeleteOption(o.id)}
-              title="Remove idea"
-              className="shrink-0 rounded px-1 text-xs text-stone-300 hover:bg-stone-100 hover:text-stone-600"
-            >
-              ✕
-            </button>
+            <div className="flex shrink-0 flex-col items-center gap-0.5">
+              <div className="flex gap-0.5">
+                <button
+                  onClick={() => onSetGoState(o.id, o.goState === "go" ? null : "go")}
+                  title="Go"
+                  className={`rounded px-1 text-xs ${
+                    o.goState === "go"
+                      ? "bg-emerald-100"
+                      : "opacity-40 hover:bg-stone-100 hover:opacity-100"
+                  }`}
+                >
+                  👍
+                </button>
+                <button
+                  onClick={() =>
+                    onSetGoState(o.id, o.goState === "no_go" ? null : "no_go")
+                  }
+                  title="No-go (hides this idea)"
+                  className={`rounded px-1 text-xs ${
+                    o.goState === "no_go"
+                      ? "bg-red-100"
+                      : "opacity-40 hover:bg-stone-100 hover:opacity-100"
+                  }`}
+                >
+                  👎
+                </button>
+              </div>
+              <button
+                onClick={() => onDeleteOption(o.id)}
+                title="Remove idea"
+                className="rounded px-1 text-xs text-stone-300 hover:bg-stone-100 hover:text-stone-600"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </th>
         {cols.map((i) => {
@@ -392,14 +444,14 @@ export default function MapWorkspace({
             </tr>
           </thead>
           <tbody>
-            {options.length === 0 ? (
+            {visibleOptions.length === 0 ? (
               <tr className="border-t border-stone-100">
                 <td colSpan={cols.length + 1} className="p-4 text-sm text-stone-400">
                   No ideas yet — add one above to start scoring.
                 </td>
               </tr>
             ) : (
-              options.map(optionRow)
+              visibleOptions.map(optionRow)
             )}
           </tbody>
         </table>

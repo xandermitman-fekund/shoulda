@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 
-export type Option = { id: string; shortName: string; description: string };
+export type Option = {
+  id: string;
+  shortName: string;
+  description: string;
+  goState: "go" | "no_go" | null;
+};
 
 export default function OptionsPanel({
   options,
@@ -13,6 +18,7 @@ export default function OptionsPanel({
   onSuggest,
   onAcceptSuggestion,
   onDismissSuggestion,
+  onSetGoState,
 }: {
   options: Option[];
   suggestions: { shortName: string; description: string }[];
@@ -22,9 +28,15 @@ export default function OptionsPanel({
   onSuggest: () => void;
   onAcceptSuggestion: (shortName: string, description: string) => void;
   onDismissSuggestion: (index: number) => void;
+  onSetGoState: (id: string, goState: "go" | "no_go" | null) => void;
 }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [showHidden, setShowHidden] = useState(false);
+
+  const hidden = options.filter((o) => o.goState === "no_go");
+  const shown = options.filter((o) => o.goState !== "no_go");
+  const list = showHidden ? options : shown;
 
   function add() {
     const n = name.trim();
@@ -95,36 +107,83 @@ export default function OptionsPanel({
 
       {/* The shared board */}
       <div className="space-y-2">
-        {options.length === 0 && (
+        {shown.length === 0 && hidden.length === 0 && (
           <p className="text-sm text-stone-400">
             No ideas yet. Add one below or use suggestions.
           </p>
         )}
-        {options.map((o) => (
-          <div
-            key={o.id}
-            className="rounded-lg border border-stone-200 bg-stone-50 p-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium text-stone-800">{o.shortName}</p>
-                {o.description && (
-                  <p className="mt-0.5 text-sm text-stone-600">{o.description}</p>
-                )}
+        {list.map((o) => {
+          const isNoGo = o.goState === "no_go";
+          return (
+            <div
+              key={o.id}
+              className={`rounded-lg border border-stone-200 bg-stone-50 p-3 ${
+                isNoGo ? "opacity-60" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p
+                    className={`font-medium text-stone-800 ${
+                      isNoGo ? "line-through" : ""
+                    }`}
+                  >
+                    {o.shortName}
+                  </p>
+                  {o.description && (
+                    <p className="mt-0.5 text-sm text-stone-600">{o.description}</p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => onSetGoState(o.id, o.goState === "go" ? null : "go")}
+                    title="Go"
+                    className={`rounded-md px-2 py-1 text-sm ${
+                      o.goState === "go"
+                        ? "bg-emerald-100"
+                        : "opacity-50 hover:bg-stone-100 hover:opacity-100"
+                    }`}
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() =>
+                      onSetGoState(o.id, o.goState === "no_go" ? null : "no_go")
+                    }
+                    title="No-go (hides this idea)"
+                    className={`rounded-md px-2 py-1 text-sm ${
+                      o.goState === "no_go"
+                        ? "bg-red-100"
+                        : "opacity-50 hover:bg-stone-100 hover:opacity-100"
+                    }`}
+                  >
+                    👎
+                  </button>
+                  <button
+                    onClick={() => onDelete(o.id)}
+                    title="Remove idea"
+                    className="rounded-md px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => onDelete(o.id)}
-                title="Mediator can remove an idea"
-                className="shrink-0 rounded-md px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-              >
-                ✕
-              </button>
             </div>
-          </div>
-        ))}
-        <p className="text-xs text-stone-400">
-          {options.length} idea{options.length === 1 ? "" : "s"} · aim for at least 3
-        </p>
+          );
+        })}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-stone-400">
+            {shown.length} idea{shown.length === 1 ? "" : "s"} · aim for at least 3
+          </p>
+          {hidden.length > 0 && (
+            <button
+              onClick={() => setShowHidden((s) => !s)}
+              className="text-xs font-medium text-stone-500 hover:text-stone-800"
+            >
+              {showHidden ? "Hide no-go'd" : `Show hidden (${hidden.length})`}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add an idea */}
@@ -133,7 +192,6 @@ export default function OptionsPanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
-          placeholder="Idea name (e.g. “Sell the house and split the proceeds”)"
           className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
         />
         <textarea

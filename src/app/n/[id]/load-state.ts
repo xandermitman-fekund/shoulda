@@ -25,7 +25,12 @@ export type SharedState = {
     totalPoints: number;
     backerIds: string[];
   }[];
-  options: { id: string; shortName: string; description: string }[];
+  options: {
+    id: string;
+    shortName: string;
+    description: string;
+    goState: "go" | "no_go" | null;
+  }[];
   scores: {
     partyId: string;
     optionId: string;
@@ -50,7 +55,6 @@ export async function loadSharedState(
         },
       },
       options: {
-        where: { hidden: false },
         orderBy: { createdAt: "asc" },
         include: { scores: true },
       },
@@ -83,6 +87,7 @@ export async function loadSharedState(
     id: o.id,
     shortName: o.shortName,
     description: o.description,
+    goState: o.goState as "go" | "no_go" | null,
   }));
 
   const scores = negotiation.options.flatMap((o) =>

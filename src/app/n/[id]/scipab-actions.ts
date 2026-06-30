@@ -73,7 +73,6 @@ export async function draftScipab(
         },
       },
       options: {
-        where: { hidden: false },
         orderBy: { createdAt: "asc" },
         include: { scores: true },
       },
@@ -86,6 +85,8 @@ export async function draftScipab(
   );
   const allInterests = negotiation.parties.flatMap((p) => p.interests);
   const interestText = new Map(allInterests.map((i) => [i.id, i.text]));
+  // Exclude no-go'd options — the agreement shouldn't recommend a rejected idea.
+  const activeOptions = negotiation.options.filter((o) => o.goState !== "no_go");
 
   const intakeBlock = negotiation.parties
     .map((p) => {
@@ -113,14 +114,14 @@ export async function draftScipab(
         .join("\n")
     : "(no interests yet)";
 
-  const optionsBlock = negotiation.options.length
-    ? negotiation.options
+  const optionsBlock = activeOptions.length
+    ? activeOptions
         .map((o) => `- ${o.shortName}: ${o.description || "(no description)"}`)
         .join("\n")
     : "(no options yet)";
 
-  const scoresBlock = negotiation.options.length
-    ? negotiation.options
+  const scoresBlock = activeOptions.length
+    ? activeOptions
         .map((o) => {
           const rows = o.scores
             .filter((s) => s.value !== null || s.na)

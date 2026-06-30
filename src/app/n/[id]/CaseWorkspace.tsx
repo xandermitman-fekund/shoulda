@@ -24,6 +24,7 @@ import {
   createOption,
   updateOption,
   deleteOption,
+  setGoState,
   suggestOptions,
 } from "./options-actions";
 import { setScore } from "./scoring-actions";
@@ -263,6 +264,8 @@ export default function CaseWorkspace({
   const sortedOptions = [...options].sort((a, b) =>
     a.shortName.localeCompare(b.shortName),
   );
+  // No-go'd options are hidden from the read-only scoring grid.
+  const activeOptions = sortedOptions.filter((o) => o.goState !== "no_go");
 
   function copyInvite() {
     const link = `${window.location.origin}/join/${inviteCode}`;
@@ -432,7 +435,17 @@ export default function CaseWorkspace({
   // ---- Options (shared) ----
   async function handleAddOption(shortName: string, description: string) {
     const r = await createOption(negotiationId, shortName, description);
-    if (r) setOptions((prev) => [...prev, r]);
+    if (r) setOptions((prev) => [...prev, { ...r, goState: null }]);
+  }
+
+  async function handleSetGoState(
+    id: string,
+    goState: "go" | "no_go" | null,
+  ) {
+    setOptions((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, goState } : o)),
+    );
+    await setGoState(id, goState);
   }
 
   async function handleDeleteOption(id: string) {
@@ -660,6 +673,7 @@ export default function CaseWorkspace({
             onDismissSuggestion={(i) =>
               setOptionSuggestions((prev) => prev.filter((_, idx) => idx !== i))
             }
+            onSetGoState={handleSetGoState}
           />
         )}
 
@@ -668,7 +682,7 @@ export default function CaseWorkspace({
             <ScoringGrid
               partyName={myName}
               interests={gridInterests}
-              options={sortedOptions}
+              options={activeOptions}
               getScore={(optionId, interestId) => getScore(me, optionId, interestId)}
               onSet={handleSetScore}
             />
@@ -699,6 +713,7 @@ export default function CaseWorkspace({
             onAddOption={(name, desc) => handleAddOption(name, desc)}
             onEditOption={handleEditOption}
             onDeleteOption={handleDeleteOption}
+            onSetGoState={handleSetGoState}
             onSetScore={handleSetScore}
           />
         )}

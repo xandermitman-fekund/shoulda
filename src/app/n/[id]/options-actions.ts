@@ -70,6 +70,19 @@ export async function deleteOption(optionId: string) {
   return { id: optionId };
 }
 
+/** Set an option's shared go/no-go state. Any participant may; last write wins. */
+export async function setGoState(
+  optionId: string,
+  goState: "go" | "no_go" | null,
+) {
+  const option = await prisma.option.findUnique({ where: { id: optionId } });
+  if (!option) return null;
+  const party = await requireParty(option.negotiationId);
+  if (!party) return null;
+  await prisma.option.update({ where: { id: optionId }, data: { goState } });
+  return { id: optionId, goState };
+}
+
 const OPTIONS_SCHEMA = {
   type: "object",
   additionalProperties: false,

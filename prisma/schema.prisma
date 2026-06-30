@@ -110,7 +110,8 @@ model Option {
   shortName     String // <= 100 chars, shown on the map
   description   String   @default("") // <= 1000 words
   source        String   @default("party") // party | mediator (internal only)
-  hidden        Boolean  @default(false) // unanimous No-Go hides (does not delete)
+  hidden        Boolean  @default(false) // legacy — superseded by goState; no longer used
+  goState       String? // null = undecided | "go" | "no_go". Per-option (shared, last-writer-wins); "no_go" auto-hides it.
   changed       Boolean  @default(false) // signifier when edited after scoring began
   createdAt     DateTime @default(now())
 
