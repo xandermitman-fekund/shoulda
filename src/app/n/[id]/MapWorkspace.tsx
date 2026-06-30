@@ -60,6 +60,16 @@ function fromCellValue(v: string): ScoreState | null {
   return { value: Number(v), na: false };
 }
 
+// Effective score 0–1: a number as-is; n/a or blank → 0 (matches the framework sheet).
+function effective(s: ScoreState): number {
+  return s.na || s.value === null ? 0 : s.value / 100;
+}
+function fmtScore(n: number): string {
+  return (Math.round(n * 100) / 100).toString();
+}
+// A must-have is only met at ≥ 0.75 (75% or 100%); below that the option is Not Viable.
+const VIABLE_THRESHOLD = 0.75;
+
 function Badge({ b }: { b: Backer }) {
   return (
     <span
@@ -131,6 +141,32 @@ export default function MapWorkspace({
   const visibleOptions = showHidden
     ? options
     : options.filter((o) => o.goState !== "no_go");
+
+  // Option Score = Σ over (person × non-must-have interest) of totalPoints × effective score.
+  function optionScore(oId: string): number {
+    let sum = 0;
+    for (const i of interests) {
+      if (i.mustHave) continue;
+      for (const p of parties)
+        sum += i.totalPoints * effective(getScore(p.id, oId, i.id));
+    }
+    return sum;
+  }
+  // Not Viable if anyone scores any must-have below the threshold.
+  function optionViable(oId: string): boolean {
+    for (const i of interests) {
+      if (!i.mustHave) continue;
+      for (const p of parties)
+        if (effective(getScore(p.id, oId, i.id)) < VIABLE_THRESHOLD) return false;
+    }
+    return true;
+  }
+  const topScore = (() => {
+    const vs = visibleOptions
+      .filter((o) => optionViable(o.id))
+      .map((o) => optionScore(o.id));
+    return vs.length ? Math.max(...vs) : -1;
+  })();
 
   function addInterest() {
     const t = newInterest.trim();
@@ -312,6 +348,9 @@ export default function MapWorkspace({
 
   function optionRow(o: MapOption) {
     const isNoGo = o.goState === "no_go";
+    const score = optionScore(o.id);
+    const viable = optionViable(o.id);
+    const isLeader = viable && score === topScore && topScore > 0;
     return (
       <tr
         key={o.id}
@@ -320,6 +359,33 @@ export default function MapWorkspace({
         <th className="sticky left-0 z-10 min-w-[12rem] max-w-[15rem] bg-white p-2 text-left align-top">
           <div className="flex items-start gap-1">
             <div className="flex-1">
+              {!scoringLocked && (
+                <div className="mb-0.5 flex items-center gap-1.5">
+                  <span
+                    title="Option score — higher is better"
+                    className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                      isLeader
+                        ? "bg-emerald-600 text-white"
+                        : "bg-stone-200 text-stone-700"
+                    }`}
+                  >
+                    {fmtScore(score)}
+                  </span>
+                  {isLeader && (
+                    <span className="text-[10px] font-medium text-emerald-600">
+                      top
+                    </span>
+                  )}
+                  {!viable && (
+                    <span
+                      title="Fails a must-have for someone — talk it out; can't mark Go"
+                      className="rounded bg-red-100 px-1 py-0.5 text-[10px] font-medium text-red-700"
+                    >
+                      Not viable
+                    </span>
+                  )}
+                </div>
+              )}
               <input
                 defaultValue={o.shortName}
                 onBlur={(e) => {
@@ -342,11 +408,18 @@ export default function MapWorkspace({
               <div className="flex gap-0.5">
                 <button
                   onClick={() => onSetGoState(o.id, o.goState === "go" ? null : "go")}
-                  title="Go"
+                  disabled={!viable && o.goState !== "go"}
+                  title={
+                    viable || o.goState === "go"
+                      ? "Go"
+                      : "Not viable — can't mark Go until it meets every must-have"
+                  }
                   className={`rounded px-1 text-xs ${
                     o.goState === "go"
                       ? "bg-emerald-100"
-                      : "opacity-40 hover:bg-stone-100 hover:opacity-100"
+                      : !viable
+                        ? "opacity-20"
+                        : "opacity-40 hover:bg-stone-100 hover:opacity-100"
                   }`}
                 >
                   👍
@@ -423,7 +496,10 @@ export default function MapWorkspace({
       <Legend color="bg-emerald-100" label="Agree" />
       <Legend color="bg-amber-100" label="Close" />
       <Legend color="bg-red-100" label="Far apart" />
-      <span className="text-stone-400">Cells show each person&apos;s score; the dropdown is yours.</span>
+      <span className="text-stone-400">
+        The number on each idea is its overall score (higher is better); cells show
+        each person&apos;s score (the dropdown is yours).
+      </span>
     </div>
   );
 
