@@ -47,7 +47,7 @@ export default function ChangeLog({
         </button>
       </div>
       <p className="mt-1 text-xs text-stone-400">
-        Every change made for this stakeholder, and who made it.
+        Every change made for this party, and who made it.
       </p>
 
       {entries && entries.length === 0 ? (

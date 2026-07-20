@@ -57,10 +57,10 @@ export default function PartyManager({
 
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-medium text-stone-900">Stakeholders</h3>
+      <h3 className="text-sm font-medium text-stone-900">Parties</h3>
       <p className="mt-1 text-xs text-stone-400">
-        Create a seat for each stakeholder. Give each a point budget, and optionally
-        invite a real person to represent themselves — or work on their behalf.
+        Create a seat for each party. Give each a point budget, and optionally invite
+        a real person to represent themselves — or work on their behalf.
       </p>
 
       <ul className="mt-3 space-y-2">
@@ -114,7 +114,7 @@ export default function PartyManager({
                   deleteParty(p.id);
                   onDeleted(p.id);
                 }}
-                title="Remove stakeholder"
+                title="Remove party"
                 className="rounded-md px-1.5 py-0.5 text-xs text-stone-400 hover:bg-red-50 hover:text-red-600"
               >
                 ✕
@@ -129,7 +129,7 @@ export default function PartyManager({
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
-          placeholder="New stakeholder name…"
+          placeholder="New party name…"
           className="flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
         />
         <label className="flex items-center gap-1 text-xs text-stone-500">
@@ -147,7 +147,7 @@ export default function PartyManager({
           disabled={!newName.trim()}
           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
         >
-          Add stakeholder
+          Add party
         </button>
       </div>
     </section>

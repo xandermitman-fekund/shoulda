@@ -498,7 +498,7 @@ export default function CaseWorkspace({
     <div className="min-h-screen bg-stone-50">
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <Link href="/" className="text-sm text-stone-500 hover:text-stone-800">
-          ← All workspaces
+          ← All negotiations
         </Link>
 
         <header className="mt-4 mb-5">
@@ -569,7 +569,7 @@ export default function CaseWorkspace({
                 onClick={() => setManaging((m) => !m)}
                 className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
               >
-                {managing ? "Done" : "Manage stakeholders"}
+                {managing ? "Done" : "Manage parties"}
               </button>
             )}
           </div>
@@ -614,7 +614,7 @@ export default function CaseWorkspace({
             </Tab>
           )}
           <Tab active={topTab === "map"} onClick={() => setTopTab("map")}>
-            The map
+            Negotiation Map
           </Tab>
           <Tab active={topTab === "agreement"} onClick={() => setTopTab("agreement")}>
             The agreement

@@ -187,7 +187,7 @@ export default function MapWorkspace({
   const header = (
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h2 className="text-lg font-medium text-stone-900">The map</h2>
+        <h2 className="text-lg font-medium text-stone-900">Negotiation Map</h2>
         <p className="mt-1 text-sm text-stone-500">
           Everything lives here — add interests &amp; ideas, set your priorities, and
           score. Green is where you already agree.

@@ -86,7 +86,7 @@ export default async function Home() {
           <>
             <header className="mb-8">
               <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
-                Your workspaces
+                Your negotiations
               </h1>
               <p className="mt-1 text-stone-500">
                 Start a new one, or pick up where you left off.
@@ -138,7 +138,7 @@ export default async function Home() {
                 </h2>
                 <p className="mt-2 text-sm text-stone-600">
                   Common Ground is in a small private pilot right now. You can still
-                  take part in any workspace you&apos;re{" "}
+                  take part in any negotiation you&apos;re{" "}
                   <strong>invited</strong> to — starting your own opens up once
                   you&apos;re admitted.
                 </p>
@@ -158,7 +158,7 @@ export default async function Home() {
             <section>
               <h2 className="mb-4 text-lg font-medium text-stone-900">Recent</h2>
               {cases.length === 0 ? (
-                <p className="text-stone-500">No workspaces yet. Start one above.</p>
+                <p className="text-stone-500">No negotiations yet. Start one above.</p>
               ) : (
                 <ul className="space-y-3">
                   {cases.map((c) => (
