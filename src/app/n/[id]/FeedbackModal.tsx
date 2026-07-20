@@ -12,6 +12,7 @@ export default function FeedbackModal({
   title,
   intro,
   submitLabel,
+  askResolution,
   initial,
   onSubmit,
   onClose,
@@ -19,6 +20,7 @@ export default function FeedbackModal({
   title: string;
   intro: string;
   submitLabel: string;
+  askResolution: boolean; // only the Guide declares the outcome
   initial: FeedbackInput | null;
   onSubmit: (data: FeedbackInput) => Promise<boolean>;
   onClose: () => void;
@@ -30,8 +32,10 @@ export default function FeedbackModal({
   const [other, setOther] = useState(initial?.other ?? "");
   const [saving, setSaving] = useState(false);
 
+  const missingResolution = askResolution && !resolutionType;
+
   async function submit() {
-    if (!resolutionType || saving) return;
+    if (missingResolution || saving) return;
     setSaving(true);
     try {
       const ok = await onSubmit({ resolutionType, helped, favorite, change, other });
@@ -57,25 +61,27 @@ export default function FeedbackModal({
         <p className="mt-1 text-sm text-stone-500">{intro}</p>
 
         <div className="mt-5 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-stone-700">
-              How did it end? <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={resolutionType}
-              onChange={(e) => setResolutionType(e.target.value)}
-              className={field}
-            >
-              <option value="" disabled>
-                Choose a resolution…
-              </option>
-              {RESOLUTION_TYPES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+          {askResolution && (
+            <div>
+              <label className="block text-sm font-medium text-stone-700">
+                How did it end? <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={resolutionType}
+                onChange={(e) => setResolutionType(e.target.value)}
+                className={field}
+              >
+                <option value="" disabled>
+                  Choose a resolution…
                 </option>
-              ))}
-            </select>
-          </div>
+                {RESOLUTION_TYPES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-stone-700">
@@ -141,7 +147,7 @@ export default function FeedbackModal({
           </button>
           <button
             onClick={submit}
-            disabled={!resolutionType || saving}
+            disabled={missingResolution || saving}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
           >
             {saving ? "Saving…" : submitLabel}

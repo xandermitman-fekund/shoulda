@@ -873,6 +873,7 @@ export default function CaseWorkspace({
             title="End negotiation"
             intro="Mark the outcome and share a little feedback. Your answers go to Xander to improve the app."
             submitLabel="End negotiation"
+            askResolution
             initial={initialMyFeedback}
             onSubmit={handleEndSubmit}
             onClose={() => setSurveyOpen(false)}
@@ -882,6 +883,7 @@ export default function CaseWorkspace({
             title="Share your feedback"
             intro="This negotiation has ended. Share how it went and your thoughts on the app — your answers go to Xander."
             submitLabel="Submit feedback"
+            askResolution={false}
             initial={initialMyFeedback}
             onSubmit={handleFeedbackSubmit}
             onClose={() => setSurveyOpen(false)}
