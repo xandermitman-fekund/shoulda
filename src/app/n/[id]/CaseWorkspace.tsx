@@ -16,8 +16,8 @@ import {
   endNegotiation,
   submitFeedback,
   reopenNegotiation,
-  type FeedbackInput,
 } from "./status-actions";
+import type { FeedbackInput } from "./status-constants";
 import {
   createInterest,
   updateInterest,

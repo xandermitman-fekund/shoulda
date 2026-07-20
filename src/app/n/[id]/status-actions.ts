@@ -3,29 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import { resolveActingParty } from "@/lib/participant";
-
-export const RESOLUTION_TYPES = [
-  "Agreement reached successfully",
-  "Agreement reached but not every party was satisfied",
-  "Negotiation canceled / abandoned / deprioritized",
-  "Other",
-] as const;
-
-export const HELPED_SCALE = [
-  "Strongly disagree",
-  "Disagree",
-  "Neutral",
-  "Agree",
-  "Strongly agree",
-] as const;
-
-export type FeedbackInput = {
-  resolutionType: string;
-  helped: string;
-  favorite: string;
-  change: string;
-  other: string;
-};
+import type { FeedbackInput } from "./status-constants";
 
 /** Coarse negotiation status derived from the chosen resolution type. */
 function statusFor(resolutionType: string): string {

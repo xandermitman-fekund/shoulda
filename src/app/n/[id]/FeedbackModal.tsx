@@ -5,7 +5,7 @@ import {
   RESOLUTION_TYPES,
   HELPED_SCALE,
   type FeedbackInput,
-} from "./status-actions";
+} from "./status-constants";
 
 /** Shared survey dialog — used by the Guide to end a negotiation and by any party to give feedback. */
 export default function FeedbackModal({
