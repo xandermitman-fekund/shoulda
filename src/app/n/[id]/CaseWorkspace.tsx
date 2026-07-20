@@ -832,6 +832,9 @@ export default function CaseWorkspace({
             atOptionLimit={atOptionLimit}
             maxOptions={limits.maxOptions}
             scoringLocked={scoringLocked}
+            isOwner={isOwner}
+            viewerPartyId={viewerPartyId}
+            onSetActing={setActingPartyId}
             getScore={getScore}
             onAddInterest={handleAdd}
             onEditInterest={handleEditInterest}

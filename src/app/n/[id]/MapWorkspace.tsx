@@ -93,6 +93,9 @@ export default function MapWorkspace({
   atOptionLimit,
   maxOptions,
   scoringLocked,
+  isOwner,
+  viewerPartyId,
+  onSetActing,
   getScore,
   onAddInterest,
   onEditInterest,
@@ -116,6 +119,9 @@ export default function MapWorkspace({
   atOptionLimit: boolean;
   maxOptions: number;
   scoringLocked: boolean;
+  isOwner: boolean;
+  viewerPartyId: string;
+  onSetActing: (partyId: string) => void;
   getScore: (partyId: string, optionId: string, interestId: string) => ScoreState;
   onAddInterest: (text: string) => void;
   onEditInterest: (id: string, text: string) => void;
@@ -202,6 +208,29 @@ export default function MapWorkspace({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {/* In full screen the control bar is hidden, so the Guide switches parties here. */}
+        {expanded && isOwner && (
+          <span className="flex items-center gap-1.5 text-sm text-stone-600">
+            Acting as
+            <select
+              value={me}
+              onChange={(e) => onSetActing(e.target.value)}
+              className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-sm font-medium text-stone-900 outline-none focus:border-emerald-500"
+            >
+              {parties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName}
+                  {p.id === viewerPartyId ? " (you)" : ""}
+                </option>
+              ))}
+            </select>
+            {me !== viewerPartyId && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                on their behalf
+              </span>
+            )}
+          </span>
+        )}
         {!scoringLocked && (
           <span
             className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
