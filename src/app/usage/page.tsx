@@ -5,6 +5,7 @@ import { getOrCreateUser } from "@/lib/user";
 import { isAdminEmail } from "@/lib/admin";
 import { negotiationRef } from "@/lib/ref";
 import { addToAllowlist, removeFromAllowlist } from "./access-actions";
+import { setAllowlistLimits } from "./settings-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -198,7 +199,9 @@ export default async function UsagePage() {
           <h2 className="text-lg font-medium text-stone-900">Pilot access</h2>
           <p className="mt-1 text-sm text-stone-500">
             Only these emails can <strong>create</strong> negotiations. Anyone can
-            still join one they&apos;re invited to. Admins are always admitted.
+            still join one they&apos;re invited to. Admins are always admitted. Each
+            row&apos;s caps (parties / ideas / interests) apply to that person&apos;s
+            negotiations — raise them to unblock a specific customer.
           </p>
 
           <form
@@ -243,13 +246,14 @@ export default async function UsagePage() {
                   <th className="p-3">Status</th>
                   <th className="p-3">Note</th>
                   <th className="p-3">Admitted</th>
+                  <th className="p-3">Caps · parties / ideas / interests</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {allowlist.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-stone-400">
+                    <td colSpan={6} className="p-6 text-center text-stone-400">
                       No one admitted yet. Add an email above to start the pilot.
                     </td>
                   </tr>
@@ -275,6 +279,25 @@ export default async function UsagePage() {
                       <td className="p-3 text-stone-500">
                         {a.createdAt.toISOString().slice(0, 10)}
                       </td>
+                      <td className="p-3">
+                        <form
+                          action={setAllowlistLimits}
+                          className="flex items-center gap-1"
+                        >
+                          <input type="hidden" name="id" value={a.id} />
+                          <CapInput name="maxParties" value={a.maxParties} />
+                          <span className="text-stone-300">/</span>
+                          <CapInput name="maxOptions" value={a.maxOptions} />
+                          <span className="text-stone-300">/</span>
+                          <CapInput name="maxInterests" value={a.maxInterests} />
+                          <button
+                            type="submit"
+                            className="ml-1 rounded-md border border-stone-300 bg-white px-2 py-0.5 text-xs font-medium text-stone-600 hover:border-stone-400"
+                          >
+                            Save
+                          </button>
+                        </form>
+                      </td>
                       <td className="p-3 text-right">
                         <form action={removeFromAllowlist}>
                           <input type="hidden" name="id" value={a.id} />
@@ -295,6 +318,18 @@ export default async function UsagePage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function CapInput({ name, value }: { name: string; value: number }) {
+  return (
+    <input
+      type="number"
+      name={name}
+      min={1}
+      defaultValue={value}
+      className="w-12 rounded border border-stone-300 px-1 py-0.5 text-center text-sm text-stone-800 outline-none focus:border-emerald-500"
+    />
   );
 }
 

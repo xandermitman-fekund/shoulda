@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireParty, resolveActingParty, recordAudit } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
+import { getLimits } from "@/lib/limits";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { recordAiCost } from "@/lib/ai-cost";
 import { suggestOptionsSystemPrompt } from "@/lib/mediator";
@@ -26,6 +27,9 @@ export async function createOption(
   if (!ctx) return null;
   const sn = shortName.trim().slice(0, 100);
   if (!sn) return null;
+  const count = await prisma.option.count({ where: { negotiationId } });
+  const { maxOptions } = await getLimits(negotiationId);
+  if (count >= maxOptions) return null; // limit backstop (UI also disables)
   const option = await prisma.option.create({
     data: {
       negotiationId,

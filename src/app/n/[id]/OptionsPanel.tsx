@@ -11,6 +11,8 @@ export type Option = {
 
 export default function OptionsPanel({
   options,
+  atLimit,
+  maxOptions,
   suggestions,
   suggesting,
   onAdd,
@@ -21,6 +23,8 @@ export default function OptionsPanel({
   onSetGoState,
 }: {
   options: Option[];
+  atLimit: boolean;
+  maxOptions: number;
   suggestions: { shortName: string; description: string }[];
   suggesting: boolean;
   onAdd: (shortName: string, description: string) => void;
@@ -40,7 +44,7 @@ export default function OptionsPanel({
 
   function add() {
     const n = name.trim();
-    if (!n) return;
+    if (!n || atLimit) return;
     onAdd(n, desc.trim());
     setName("");
     setDesc("");
@@ -192,22 +196,30 @@ export default function OptionsPanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          disabled={atLimit}
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-stone-50"
         />
         <textarea
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
           rows={2}
+          disabled={atLimit}
           placeholder="Describe it briefly — enough that everyone can judge how well it meets their needs."
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-stone-50"
         />
         <button
           onClick={add}
-          disabled={!name.trim()}
+          disabled={!name.trim() || atLimit}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
         >
           Add idea
         </button>
+        {atLimit && (
+          <p className="text-xs text-amber-700">
+            This negotiation has reached its {maxOptions}-idea limit. Remove one to add
+            another.
+          </p>
+        )}
       </div>
     </section>
   );

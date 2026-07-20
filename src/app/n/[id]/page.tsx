@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import CaseWorkspace from "./CaseWorkspace";
 import { loadSharedState } from "./load-state";
+import { getLimits } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export default async function CasePage({
   // Shared, syncable state (same shape the live-sync poll returns).
   const shared = await loadSharedState(id, user.id);
   if (!shared) notFound();
+
+  const limits = await getLimits(id);
 
   // The viewer's own intake chat is private — loaded once, never synced or proxied.
   const myIntake = await prisma.intakeMessage.findMany({
@@ -55,6 +58,7 @@ export default async function CasePage({
       initialOptions={shared.options}
       initialScores={shared.scores}
       initialScipab={shared.scipab}
+      limits={limits}
     />
   );
 }

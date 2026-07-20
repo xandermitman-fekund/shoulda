@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
+import { getLimits } from "@/lib/limits";
 
 /** Return the signed-in user IFF they own this workspace, else null. Owner-only gate. */
 async function requireOwner(negotiationId: string) {
@@ -28,6 +29,8 @@ export async function createParty(
   const name = displayName.trim().slice(0, 80);
   if (!name) return null;
   const count = await prisma.party.count({ where: { negotiationId } });
+  const { maxParties } = await getLimits(negotiationId);
+  if (count >= maxParties) return null; // limit backstop (UI also disables)
   const party = await prisma.party.create({
     data: {
       negotiationId,

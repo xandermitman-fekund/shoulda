@@ -14,6 +14,8 @@ type Note = { message: string; suggestion: string; original: string };
 export default function InterestsPanel({
   partyName,
   interests,
+  atNegotiationLimit,
+  maxInterests,
   suggestions,
   suggesting,
   submitted,
@@ -29,6 +31,8 @@ export default function InterestsPanel({
 }: {
   partyName: string;
   interests: Interest[];
+  atNegotiationLimit: boolean;
+  maxInterests: number;
   suggestions: string[];
   suggesting: boolean;
   submitted: boolean;
@@ -46,9 +50,11 @@ export default function InterestsPanel({
   const [checking, setChecking] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
 
+  const addBlocked = interests.length >= 5 || atNegotiationLimit;
+
   async function submit() {
     const text = newText.trim();
-    if (!text || checking || interests.length >= 5) return;
+    if (!text || checking || addBlocked) return;
     setChecking(true);
     setNote(null);
     try {
@@ -239,20 +245,27 @@ export default function InterestsPanel({
               }
             }}
             placeholder="Add something that matters to you…"
-            disabled={interests.length >= 5 || checking}
+            disabled={addBlocked || checking}
             className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:bg-stone-50"
           />
           <button
             onClick={submit}
-            disabled={!newText.trim() || interests.length >= 5 || checking}
+            disabled={!newText.trim() || addBlocked || checking}
             className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
           >
             {checking ? "Checking…" : "Add"}
           </button>
         </div>
-        <p className="text-xs text-stone-400">
-          {interests.length} of 3–5{interests.length > 5 ? " (too many)" : ""}
-        </p>
+        {atNegotiationLimit ? (
+          <p className="text-xs text-amber-700">
+            This negotiation has reached its {maxInterests}-interest limit. Remove one
+            (here or on the map) to add another.
+          </p>
+        ) : (
+          <p className="text-xs text-stone-400">
+            {interests.length} of 3–5{interests.length > 5 ? " (too many)" : ""}
+          </p>
+        )}
       </div>
 
       {/* Share with the group — gates the shared steps */}

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireParty, resolveActingParty, recordAudit } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
+import { getLimits } from "@/lib/limits";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { recordAiCost } from "@/lib/ai-cost";
 import {
@@ -29,6 +30,9 @@ export async function createInterest(
   if (!t) return null;
   const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
   if (!ctx) return null;
+  const count = await prisma.interest.count({ where: { negotiationId } });
+  const { maxInterests } = await getLimits(negotiationId);
+  if (count >= maxInterests) return null; // limit backstop (UI also disables)
   const interest = await prisma.interest.create({
     data: { negotiationId, ownerPartyId: ctx.party.id, text: t },
   });

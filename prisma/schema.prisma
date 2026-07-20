@@ -203,12 +203,16 @@ model AiUsage {
 
 /// Pilot allowlist — emails admitted to CREATE negotiations. Anyone may still
 /// JOIN via an invite link. Admins (ADMIN_EMAILS) are implicitly admitted.
+/// Per-pilot-user caps are enforced on the negotiations they own.
 model Allowlist {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  note      String?
-  addedBy   String? // admin User id who admitted them
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  email        String   @unique
+  note         String?
+  addedBy      String? // admin User id who admitted them
+  maxParties   Int      @default(5) // max parties per negotiation they own
+  maxOptions   Int      @default(7) // max ideas per negotiation (total across all parties)
+  maxInterests Int      @default(7) // max interests per negotiation (total across all parties)
+  createdAt    DateTime @default(now())
 }
 
 /// Per-call AI cost ledger powering the operator usage/cost console.

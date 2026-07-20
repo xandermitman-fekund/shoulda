@@ -88,6 +88,10 @@ export default function MapWorkspace({
   options,
   budget,
   spent,
+  atInterestLimit,
+  maxInterests,
+  atOptionLimit,
+  maxOptions,
   scoringLocked,
   getScore,
   onAddInterest,
@@ -107,6 +111,10 @@ export default function MapWorkspace({
   options: MapOption[];
   budget: number;
   spent: number;
+  atInterestLimit: boolean;
+  maxInterests: number;
+  atOptionLimit: boolean;
+  maxOptions: number;
   scoringLocked: boolean;
   getScore: (partyId: string, optionId: string, interestId: string) => ScoreState;
   onAddInterest: (text: string) => void;
@@ -172,13 +180,13 @@ export default function MapWorkspace({
 
   function addInterest() {
     const t = newInterest.trim();
-    if (!t) return;
+    if (!t || atInterestLimit) return;
     onAddInterest(t);
     setNewInterest("");
   }
   function addOption() {
     const n = newOptName.trim();
-    if (!n) return;
+    if (!n || atOptionLimit) return;
     onAddOption(n, newOptDesc.trim());
     setNewOptName("");
     setNewOptDesc("");
@@ -218,62 +226,75 @@ export default function MapWorkspace({
   );
 
   const toolbar = (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          addInterest();
-        }}
-        className="flex gap-1"
-      >
-        <input
-          value={newInterest}
-          onChange={(e) => setNewInterest(e.target.value)}
-          placeholder="Add an interest…"
-          className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500"
-        />
-        <button
-          type="submit"
-          disabled={!newInterest.trim()}
-          className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
+    <div className="mt-3">
+      <div className="flex flex-wrap gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            addInterest();
+          }}
+          className="flex gap-1"
         >
-          + Interest
-        </button>
-      </form>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          addOption();
-        }}
-        className="flex gap-1"
-      >
-        <input
-          value={newOptName}
-          onChange={(e) => setNewOptName(e.target.value)}
-          placeholder="Add an idea…"
-          className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500"
-        />
-        <input
-          value={newOptDesc}
-          onChange={(e) => setNewOptDesc(e.target.value)}
-          placeholder="(detail, optional)"
-          className="w-40 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500"
-        />
-        <button
-          type="submit"
-          disabled={!newOptName.trim()}
-          className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
+          <input
+            value={newInterest}
+            onChange={(e) => setNewInterest(e.target.value)}
+            placeholder={atInterestLimit ? "Interest limit reached" : "Add an interest…"}
+            disabled={atInterestLimit}
+            className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
+          />
+          <button
+            type="submit"
+            disabled={!newInterest.trim() || atInterestLimit}
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
+          >
+            + Interest
+          </button>
+        </form>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            addOption();
+          }}
+          className="flex gap-1"
         >
-          + Idea
-        </button>
-      </form>
-      {hiddenCount > 0 && (
-        <button
-          onClick={() => setShowHidden((s) => !s)}
-          className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
-        >
-          {showHidden ? "Hide no-go'd" : `Show hidden (${hiddenCount})`}
-        </button>
+          <input
+            value={newOptName}
+            onChange={(e) => setNewOptName(e.target.value)}
+            placeholder={atOptionLimit ? "Idea limit reached" : "Add an idea…"}
+            disabled={atOptionLimit}
+            className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
+          />
+          <input
+            value={newOptDesc}
+            onChange={(e) => setNewOptDesc(e.target.value)}
+            placeholder="(detail, optional)"
+            disabled={atOptionLimit}
+            className="w-40 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
+          />
+          <button
+            type="submit"
+            disabled={!newOptName.trim() || atOptionLimit}
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
+          >
+            + Idea
+          </button>
+        </form>
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setShowHidden((s) => !s)}
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
+          >
+            {showHidden ? "Hide no-go'd" : `Show hidden (${hiddenCount})`}
+          </button>
+        )}
+      </div>
+      {(atInterestLimit || atOptionLimit) && (
+        <p className="mt-1.5 text-xs text-amber-700">
+          {atInterestLimit && `Interest limit reached (${maxInterests} max).`}
+          {atInterestLimit && atOptionLimit && " "}
+          {atOptionLimit && `Idea limit reached (${maxOptions} max).`}{" "}
+          Remove one to add another.
+        </p>
       )}
     </div>
   );

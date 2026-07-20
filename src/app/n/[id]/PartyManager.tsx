@@ -22,6 +22,8 @@ export type ManagedParty = {
 export default function PartyManager({
   negotiationId,
   parties,
+  atLimit,
+  maxParties,
   onCreated,
   onRenamed,
   onBudget,
@@ -29,6 +31,8 @@ export default function PartyManager({
 }: {
   negotiationId: string;
   parties: ManagedParty[];
+  atLimit: boolean;
+  maxParties: number;
   onCreated: (p: ManagedParty) => void;
   onRenamed: (id: string, name: string) => void;
   onBudget: (id: string, budget: number) => void;
@@ -40,7 +44,7 @@ export default function PartyManager({
 
   async function add() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || atLimit) return;
     const p = await createParty(negotiationId, name, newBudget);
     if (p) {
       onCreated({ ...p, claimed: p.userId !== null, isViewer: false });
@@ -124,31 +128,40 @@ export default function PartyManager({
         ))}
       </ul>
 
-      <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-stone-100 pt-3">
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-          placeholder="New party name…"
-          className="flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
-        />
-        <label className="flex items-center gap-1 text-xs text-stone-500">
-          budget
+      <div className="mt-3 border-t border-stone-100 pt-3">
+        <div className="flex flex-wrap items-end gap-2">
           <input
-            type="number"
-            min={0}
-            value={newBudget}
-            onChange={(e) => setNewBudget(Math.max(0, Math.round(Number(e.target.value) || 0)))}
-            className="w-14 rounded border border-stone-300 px-1.5 py-1 text-sm outline-none focus:border-emerald-500"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            placeholder="New party name…"
+            disabled={atLimit}
+            className="flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
           />
-        </label>
-        <button
-          onClick={add}
-          disabled={!newName.trim()}
-          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
-        >
-          Add party
-        </button>
+          <label className="flex items-center gap-1 text-xs text-stone-500">
+            budget
+            <input
+              type="number"
+              min={0}
+              value={newBudget}
+              onChange={(e) => setNewBudget(Math.max(0, Math.round(Number(e.target.value) || 0)))}
+              className="w-14 rounded border border-stone-300 px-1.5 py-1 text-sm outline-none focus:border-emerald-500"
+            />
+          </label>
+          <button
+            onClick={add}
+            disabled={!newName.trim() || atLimit}
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+          >
+            Add party
+          </button>
+        </div>
+        {atLimit && (
+          <p className="mt-2 text-xs text-amber-700">
+            Party limit reached ({maxParties} max on this plan). Remove one, or raise
+            this customer&apos;s cap to add more.
+          </p>
+        )}
       </div>
     </section>
   );

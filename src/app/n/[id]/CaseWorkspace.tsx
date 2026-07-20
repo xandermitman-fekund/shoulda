@@ -33,6 +33,7 @@ import { setScore } from "./scoring-actions";
 import { draftScipab, type Scipab } from "./scipab-actions";
 import { pollState } from "./sync-actions";
 import type { SharedParty, SharedInterest } from "./load-state";
+import type { Limits } from "@/lib/limits";
 import { negotiationRef } from "@/lib/ref";
 
 type TopTab = "intake" | "map" | "agreement";
@@ -95,6 +96,7 @@ export default function CaseWorkspace({
   initialOptions,
   initialScores,
   initialScipab,
+  limits,
 }: {
   negotiationId: string;
   caseLabel: string;
@@ -108,6 +110,7 @@ export default function CaseWorkspace({
   initialOptions: Option[];
   initialScores: ScoreSeed[];
   initialScipab: Scipab | null;
+  limits: Limits;
 }) {
   const [parties, setParties] = useState<SharedParty[]>(initialParties);
   // Which party the current user is acting as. Non-owners are always their own seat.
@@ -271,6 +274,12 @@ export default function CaseWorkspace({
 
   const sortedOptions = [...options].sort((a, b) => a.shortName.localeCompare(b.shortName));
   const activeOptions = sortedOptions.filter((o) => o.goState !== "no_go");
+
+  // Per-negotiation caps (admin-configured). Existing items over a lowered cap stay;
+  // the limit only blocks adding more.
+  const atPartyLimit = parties.length >= limits.maxParties;
+  const atInterestLimit = interests.length >= limits.maxInterests;
+  const atOptionLimit = options.length >= limits.maxOptions;
 
   // ---- Intake chat (viewer's own seat only — never proxied) ----
   function updateMsgs(updater: (prev: Msg[]) => Msg[]) {
@@ -579,6 +588,8 @@ export default function CaseWorkspace({
           <div className="mb-5">
             <PartyManager
               negotiationId={negotiationId}
+              atLimit={atPartyLimit}
+              maxParties={limits.maxParties}
               parties={parties.map((p) => ({
                 id: p.id,
                 displayName: p.displayName,
@@ -656,6 +667,8 @@ export default function CaseWorkspace({
               <InterestsPanel
                 partyName={actingName}
                 interests={myInterests}
+                atNegotiationLimit={atInterestLimit}
+                maxInterests={limits.maxInterests}
                 suggestions={suggestionsByParty[actingId] ?? []}
                 suggesting={suggesting}
                 submitted={submitted}
@@ -691,6 +704,8 @@ export default function CaseWorkspace({
             {subPhase === "options" && (
               <OptionsPanel
                 options={options}
+                atLimit={atOptionLimit}
+                maxOptions={limits.maxOptions}
                 suggestions={optionSuggestions}
                 suggesting={suggestingOptions}
                 onAdd={handleAddOption}
@@ -726,6 +741,10 @@ export default function CaseWorkspace({
             options={sortedOptions}
             budget={actingBudget}
             spent={actingSpent}
+            atInterestLimit={atInterestLimit}
+            maxInterests={limits.maxInterests}
+            atOptionLimit={atOptionLimit}
+            maxOptions={limits.maxOptions}
             scoringLocked={scoringLocked}
             getScore={getScore}
             onAddInterest={handleAdd}
