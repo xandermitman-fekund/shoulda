@@ -366,7 +366,8 @@ export default function CaseWorkspace({
     setInterests((prev) => prev.filter((i) => i.id !== id));
   }
   async function handleToggleMustHave(id: string, mustHave: boolean) {
-    await setMustHave(id, mustHave, actingId);
+    const before = interests.find((i) => i.id === id);
+    // Optimistic: flip immediately so the click always gives feedback.
     setInterests((prev) =>
       prev.map((i) =>
         i.id === id
@@ -376,6 +377,11 @@ export default function CaseWorkspace({
           : i,
       ),
     );
+    const r = await setMustHave(id, mustHave, actingId);
+    // Revert if the server rejected it (keeps local + server in sync).
+    if (!r && before) {
+      setInterests((prev) => prev.map((i) => (i.id === id ? before : i)));
+    }
   }
   async function handleSavePoints(allocs: { interestId: string; points: number }[]) {
     const r = await saveInterestPoints(negotiationId, allocs, actingId);
