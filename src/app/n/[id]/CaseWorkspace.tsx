@@ -538,7 +538,7 @@ export default function CaseWorkspace({
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <div className="mx-auto w-full max-w-3xl px-6 py-10">
+      <div className="mx-auto w-full max-w-6xl px-6 py-10">
         <Link href="/" className="text-sm text-stone-500 hover:text-stone-800">
           ← All negotiations
         </Link>
@@ -719,7 +719,7 @@ export default function CaseWorkspace({
         </div>
 
         {topTab === "intake" && showIntake && (
-          <div>
+          <div className="mx-auto max-w-3xl">
             {/* Intake sub-steps */}
             <div className="mb-5 flex flex-wrap gap-1 border-b border-stone-100">
               <SubTab active={subPhase === "chat"} onClick={() => setSubPhase("chat")}>
@@ -850,13 +850,15 @@ export default function CaseWorkspace({
         )}
 
         {topTab === "agreement" && (
-          <ScipabPanel
-            scipab={scipab}
-            drafting={draftingScipab}
-            error={scipabError}
-            hasOptions={options.length > 0}
-            onDraft={handleDraftScipab}
-          />
+          <div className="mx-auto max-w-3xl">
+            <ScipabPanel
+              scipab={scipab}
+              drafting={draftingScipab}
+              error={scipabError}
+              hasOptions={options.length > 0}
+              onDraft={handleDraftScipab}
+            />
+          </div>
         )}
 
         <p className="mt-4 text-center text-xs text-stone-400">
