@@ -30,12 +30,19 @@ model Negotiation {
   description  String    @default("") // <= 200 words
   deadlineDate DateTime?
   deadlineTime String? // optional "HH:MM"
-  status       String    @default("In Progress") // New | In Progress | Paused | Done - Resolved | Done - Abandoned
+  status       String    @default("In Progress") // In Progress | Resolved | Abandoned | Ended
   ownerUserId  String
   owner        User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   inviteCode   String    @unique @default(cuid())
   scipab       String? // JSON of the AI-drafted SCIPAB "document of record" (the agreement)
   scipabAt     DateTime? // when the SCIPAB was last drafted
+  // --- Closure (set by the Guide via "End negotiation"): outcome + exit survey ---
+  endedAt        DateTime?
+  resolutionType String? // the picklist outcome the Guide selected
+  fbHelped       String? // Likert: "This app helped me run a better negotiation"
+  fbFavorite     String? // free text: favorite thing
+  fbChange       String? // free text: one thing to change
+  fbOther        String? // free text: anything else for Xander
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

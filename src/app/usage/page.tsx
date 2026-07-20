@@ -194,6 +194,57 @@ export default async function UsagePage() {
           Claude subscription.
         </p>
 
+        {/* Feedback & outcomes */}
+        {negotiations.some((n) => n.endedAt) && (
+          <section className="mt-10">
+            <h2 className="text-lg font-medium text-stone-900">
+              Feedback &amp; outcomes
+            </h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Exit surveys from Guides when they ended a negotiation.
+            </p>
+            <div className="mt-4 space-y-3">
+              {negotiations
+                .filter((n) => n.endedAt)
+                .map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-sm text-stone-500">
+                        {negotiationRef(n.id)}
+                      </span>
+                      <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">
+                        {n.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-stone-700">
+                      <span className="text-stone-400">Outcome:</span>{" "}
+                      {n.resolutionType ?? "—"}
+                    </p>
+                    {n.fbHelped && (
+                      <p className="mt-1 text-sm text-stone-700">
+                        <span className="text-stone-400">
+                          Helped run a better negotiation:
+                        </span>{" "}
+                        {n.fbHelped}
+                      </p>
+                    )}
+                    {n.fbFavorite && <Feedback label="Favorite" text={n.fbFavorite} />}
+                    {n.fbChange && <Feedback label="Would change" text={n.fbChange} />}
+                    {n.fbOther && <Feedback label="For you" text={n.fbOther} />}
+                    <p className="mt-2 text-xs text-stone-400">
+                      {n.owner.displayName}
+                      {n.owner.email && ` · ${n.owner.email}`}
+                      {n.endedAt && ` · ${n.endedAt.toISOString().slice(0, 10)}`}
+                    </p>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+
         {/* Pilot access */}
         <section className="mt-10">
           <h2 className="text-lg font-medium text-stone-900">Pilot access</h2>
@@ -317,6 +368,17 @@ export default async function UsagePage() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function Feedback({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="mt-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-stone-400">
+        {label}
+      </p>
+      <p className="mt-0.5 whitespace-pre-wrap text-sm text-stone-700">{text}</p>
     </div>
   );
 }

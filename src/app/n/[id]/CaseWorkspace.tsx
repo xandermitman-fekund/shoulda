@@ -11,6 +11,8 @@ import MapWorkspace from "./MapWorkspace";
 import ScipabPanel from "./ScipabPanel";
 import PartyManager from "./PartyManager";
 import ChangeLog from "./ChangeLog";
+import EndNegotiationModal from "./EndNegotiationModal";
+import { reopenNegotiation, type Closure } from "./status-actions";
 import {
   createInterest,
   updateInterest,
@@ -86,7 +88,7 @@ function withPartyPoints(
 export default function CaseWorkspace({
   negotiationId,
   caseLabel,
-  status,
+  status: initialStatus,
   description,
   isOwner,
   viewerPartyId,
@@ -96,6 +98,7 @@ export default function CaseWorkspace({
   initialOptions,
   initialScores,
   initialScipab,
+  initialClosure,
   limits,
 }: {
   negotiationId: string;
@@ -110,9 +113,12 @@ export default function CaseWorkspace({
   initialOptions: Option[];
   initialScores: ScoreSeed[];
   initialScipab: Scipab | null;
+  initialClosure: Closure | null;
   limits: Limits;
 }) {
   const [parties, setParties] = useState<SharedParty[]>(initialParties);
+  const [status, setStatus] = useState(initialStatus);
+  const [endOpen, setEndOpen] = useState(false);
   // Which party the current user is acting as. Non-owners are always their own seat.
   const [actingPartyId, setActingPartyId] = useState(viewerPartyId);
   const acting = parties.find((p) => p.id === actingPartyId) ?? parties.find((p) => p.id === viewerPartyId);
@@ -170,6 +176,7 @@ export default function CaseWorkspace({
       if (!active || !result) return;
       const data = result;
       const snap = JSON.stringify({
+        status: data.status,
         parties: data.parties,
         allInterests: data.allInterests,
         options: data.options,
@@ -179,6 +186,7 @@ export default function CaseWorkspace({
       if (snap === lastSync.current) return;
       lastSync.current = snap;
 
+      setStatus(data.status);
       setParties(data.parties);
       setReadyByParty((prev) => {
         const next: Record<string, boolean> = {};
@@ -484,6 +492,16 @@ export default function CaseWorkspace({
     }
   }
 
+  // ---- End / reopen negotiation (owner) ----
+  function handleEnded(newStatus: string) {
+    setStatus(newStatus);
+    setEndOpen(false);
+  }
+  async function handleReopen() {
+    setStatus("In Progress");
+    await reopenNegotiation(negotiationId);
+  }
+
   // ---- Party management callbacks (owner) ----
   const onPartyCreated = (p: SharedParty & { interestsReady?: boolean }) => {
     setParties((prev) => [...prev, { ...p, interestsReady: false }]);
@@ -515,7 +533,15 @@ export default function CaseWorkspace({
             <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
               {caseLabel}
             </h1>
-            <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                status === "In Progress"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : status === "Resolved"
+                    ? "bg-sky-100 text-sky-700"
+                    : "bg-stone-200 text-stone-600"
+              }`}
+            >
               {status}
             </span>
           </div>
@@ -581,8 +607,32 @@ export default function CaseWorkspace({
                 {managing ? "Done" : "Manage parties"}
               </button>
             )}
+            {isOwner &&
+              (status === "In Progress" ? (
+                <button
+                  onClick={() => setEndOpen(true)}
+                  className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600 hover:border-red-300 hover:text-red-600"
+                >
+                  End negotiation
+                </button>
+              ) : (
+                <button
+                  onClick={handleReopen}
+                  className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
+                >
+                  Reopen
+                </button>
+              ))}
           </div>
         </div>
+
+        {status !== "In Progress" && (
+          <div className="mb-5 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm text-stone-600">
+            This negotiation has ended —{" "}
+            <span className="font-medium text-stone-800">{status}</span>.
+            {isOwner && " Reopen it to make further changes."}
+          </div>
+        )}
 
         {isOwner && managing && (
           <div className="mb-5">
@@ -780,6 +830,15 @@ export default function CaseWorkspace({
               : "Capture what matters, then head to the map."}
         </p>
       </div>
+
+      {isOwner && endOpen && (
+        <EndNegotiationModal
+          negotiationId={negotiationId}
+          initial={initialClosure}
+          onClose={() => setEndOpen(false)}
+          onEnded={handleEnded}
+        />
+      )}
     </div>
   );
 }

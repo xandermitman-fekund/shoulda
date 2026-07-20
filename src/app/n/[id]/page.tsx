@@ -22,6 +22,38 @@ export default async function CasePage({
 
   const limits = await getLimits(id);
 
+  // The Guide's saved exit survey (owner-only), so "Edit outcome" prefills.
+  let initialClosure = null as
+    | {
+        resolutionType: string;
+        fbHelped: string;
+        fbFavorite: string;
+        fbChange: string;
+        fbOther: string;
+      }
+    | null;
+  if (shared.isOwner) {
+    const c = await prisma.negotiation.findUnique({
+      where: { id },
+      select: {
+        resolutionType: true,
+        fbHelped: true,
+        fbFavorite: true,
+        fbChange: true,
+        fbOther: true,
+      },
+    });
+    if (c?.resolutionType) {
+      initialClosure = {
+        resolutionType: c.resolutionType,
+        fbHelped: c.fbHelped ?? "",
+        fbFavorite: c.fbFavorite ?? "",
+        fbChange: c.fbChange ?? "",
+        fbOther: c.fbOther ?? "",
+      };
+    }
+  }
+
   // The viewer's own intake chat is private — loaded once, never synced or proxied.
   const myIntake = await prisma.intakeMessage.findMany({
     where: { partyId: shared.viewerPartyId },
@@ -58,6 +90,7 @@ export default async function CasePage({
       initialOptions={shared.options}
       initialScores={shared.scores}
       initialScipab={shared.scipab}
+      initialClosure={initialClosure}
       limits={limits}
     />
   );
