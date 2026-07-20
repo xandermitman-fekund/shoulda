@@ -207,7 +207,7 @@ export default function InterestsPanel({
         {/* Mediator coaching when a typed item looks like an option */}
         {note && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-            <p className="font-medium text-amber-900">A note from your guide</p>
+            <p className="font-medium text-amber-900">A note from your assistant</p>
             <p className="mt-1 text-amber-900">{note.message}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {note.suggestion && (

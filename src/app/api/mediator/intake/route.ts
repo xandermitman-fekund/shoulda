@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   const creditUserId: string = base.userId;
   if (!(await consumeAiCredit(base.userId))) {
     const msg =
-      "You've reached your monthly limit for the AI guide. Thanks for trying it — it's free with usage limits to keep costs in check.";
+      "You've reached your monthly limit for the AI assistant. Thanks for trying it — it's free with usage limits to keep costs in check.";
     return new Response(msg, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",

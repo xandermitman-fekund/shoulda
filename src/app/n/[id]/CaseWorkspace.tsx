@@ -317,7 +317,7 @@ export default function CaseWorkspace({
         const copy = [...prev];
         copy[copy.length - 1] = {
           role: "assistant",
-          content: "⚠️ Something went wrong reaching the guide. Try again.",
+          content: "⚠️ Something went wrong reaching the assistant. Try again.",
         };
         return copy;
       });
@@ -499,7 +499,7 @@ export default function CaseWorkspace({
     if (actingId === id) setActingPartyId(viewerPartyId);
   };
 
-  const opener = `Hi ${viewerName}. I'm your guide — I'm here to help capture what matters to you so we can find a solution everyone can get behind. There are no wrong answers. To start, what's something that would help me understand where you're coming from?`;
+  const opener = `Hi ${viewerName}. I'm your assistant — I'm here to help capture what matters to you so we can find a solution everyone can get behind. There are no wrong answers. To start, what's something that would help me understand where you're coming from?`;
 
   const showIntake = !isProxy;
 
@@ -637,7 +637,7 @@ export default function CaseWorkspace({
             {/* Intake sub-steps */}
             <div className="mb-5 flex flex-wrap gap-1 border-b border-stone-100">
               <SubTab active={subPhase === "chat"} onClick={() => setSubPhase("chat")}>
-                Meet the guide
+                Meet the assistant
               </SubTab>
               <SubTab active={subPhase === "interests"} onClick={() => setSubPhase("interests")}>
                 What matters

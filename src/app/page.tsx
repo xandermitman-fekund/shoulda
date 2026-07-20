@@ -72,7 +72,7 @@ export default async function Home() {
             <p className="mx-auto mt-3 max-w-md text-stone-600">
               Got a group decision to make? Surface what everyone actually cares
               about, put ideas on the table, and watch a shared map reveal where
-              you already agree — with an AI guide leading the way.
+              you already agree — with an AI assistant leading the way.
             </p>
             <div className="mt-7">
               <SignUpButton mode="modal">
