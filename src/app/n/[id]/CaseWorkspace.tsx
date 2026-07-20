@@ -11,8 +11,13 @@ import MapWorkspace from "./MapWorkspace";
 import ScipabPanel from "./ScipabPanel";
 import PartyManager from "./PartyManager";
 import ChangeLog from "./ChangeLog";
-import EndNegotiationModal from "./EndNegotiationModal";
-import { reopenNegotiation, type Closure } from "./status-actions";
+import FeedbackModal from "./FeedbackModal";
+import {
+  endNegotiation,
+  submitFeedback,
+  reopenNegotiation,
+  type FeedbackInput,
+} from "./status-actions";
 import {
   createInterest,
   updateInterest,
@@ -98,7 +103,7 @@ export default function CaseWorkspace({
   initialOptions,
   initialScores,
   initialScipab,
-  initialClosure,
+  initialMyFeedback,
   limits,
 }: {
   negotiationId: string;
@@ -113,12 +118,13 @@ export default function CaseWorkspace({
   initialOptions: Option[];
   initialScores: ScoreSeed[];
   initialScipab: Scipab | null;
-  initialClosure: Closure | null;
+  initialMyFeedback: FeedbackInput | null;
   limits: Limits;
 }) {
   const [parties, setParties] = useState<SharedParty[]>(initialParties);
   const [status, setStatus] = useState(initialStatus);
-  const [endOpen, setEndOpen] = useState(false);
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [myFeedbackDone, setMyFeedbackDone] = useState(!!initialMyFeedback);
   // Which party the current user is acting as. Non-owners are always their own seat.
   const [actingPartyId, setActingPartyId] = useState(viewerPartyId);
   const acting = parties.find((p) => p.id === actingPartyId) ?? parties.find((p) => p.id === viewerPartyId);
@@ -492,10 +498,19 @@ export default function CaseWorkspace({
     }
   }
 
-  // ---- End / reopen negotiation (owner) ----
-  function handleEnded(newStatus: string) {
-    setStatus(newStatus);
-    setEndOpen(false);
+  // ---- End / feedback / reopen ----
+  async function handleEndSubmit(data: FeedbackInput): Promise<boolean> {
+    const r = await endNegotiation(negotiationId, data);
+    if (r.ok) {
+      setStatus(r.status);
+      setMyFeedbackDone(true);
+    }
+    return r.ok;
+  }
+  async function handleFeedbackSubmit(data: FeedbackInput): Promise<boolean> {
+    const r = await submitFeedback(negotiationId, data, actingId);
+    if (r.ok) setMyFeedbackDone(true);
+    return r.ok;
   }
   async function handleReopen() {
     setStatus("In Progress");
@@ -610,7 +625,7 @@ export default function CaseWorkspace({
             {isOwner &&
               (status === "In Progress" ? (
                 <button
-                  onClick={() => setEndOpen(true)}
+                  onClick={() => setSurveyOpen(true)}
                   className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600 hover:border-red-300 hover:text-red-600"
                 >
                   End negotiation
@@ -627,10 +642,31 @@ export default function CaseWorkspace({
         </div>
 
         {status !== "In Progress" && (
-          <div className="mb-5 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm text-stone-600">
-            This negotiation has ended —{" "}
-            <span className="font-medium text-stone-800">{status}</span>.
-            {isOwner && " Reopen it to make further changes."}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm text-stone-600">
+            <span>
+              This negotiation has ended —{" "}
+              <span className="font-medium text-stone-800">{status}</span>.
+              {isOwner && " Reopen it to make further changes."}
+            </span>
+            {!isOwner &&
+              (myFeedbackDone ? (
+                <span className="flex items-center gap-2 text-stone-500">
+                  Thanks for your feedback ✓
+                  <button
+                    onClick={() => setSurveyOpen(true)}
+                    className="font-medium text-emerald-700 hover:underline"
+                  >
+                    Edit
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => setSurveyOpen(true)}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  Share your feedback →
+                </button>
+              ))}
           </div>
         )}
 
@@ -831,14 +867,26 @@ export default function CaseWorkspace({
         </p>
       </div>
 
-      {isOwner && endOpen && (
-        <EndNegotiationModal
-          negotiationId={negotiationId}
-          initial={initialClosure}
-          onClose={() => setEndOpen(false)}
-          onEnded={handleEnded}
-        />
-      )}
+      {surveyOpen &&
+        (isOwner ? (
+          <FeedbackModal
+            title="End negotiation"
+            intro="Mark the outcome and share a little feedback. Your answers go to Xander to improve the app."
+            submitLabel="End negotiation"
+            initial={initialMyFeedback}
+            onSubmit={handleEndSubmit}
+            onClose={() => setSurveyOpen(false)}
+          />
+        ) : (
+          <FeedbackModal
+            title="Share your feedback"
+            intro="This negotiation has ended. Share how it went and your thoughts on the app — your answers go to Xander."
+            submitLabel="Submit feedback"
+            initial={initialMyFeedback}
+            onSubmit={handleFeedbackSubmit}
+            onClose={() => setSurveyOpen(false)}
+          />
+        ))}
     </div>
   );
 }

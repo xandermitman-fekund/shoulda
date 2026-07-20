@@ -24,6 +24,10 @@ export default async function UsagePage() {
       include: {
         owner: true,
         _count: { select: { parties: true } },
+        feedback: {
+          orderBy: { createdAt: "asc" },
+          include: { party: { select: { displayName: true } } },
+        },
       },
     }),
     prisma.aiCall.findMany({
@@ -195,17 +199,17 @@ export default async function UsagePage() {
         </p>
 
         {/* Feedback & outcomes */}
-        {negotiations.some((n) => n.endedAt) && (
+        {negotiations.some((n) => n.feedback.length > 0) && (
           <section className="mt-10">
             <h2 className="text-lg font-medium text-stone-900">
               Feedback &amp; outcomes
             </h2>
             <p className="mt-1 text-sm text-stone-500">
-              Exit surveys from Guides when they ended a negotiation.
+              Exit surveys from the Guide and parties, per negotiation.
             </p>
             <div className="mt-4 space-y-3">
               {negotiations
-                .filter((n) => n.endedAt)
+                .filter((n) => n.feedback.length > 0)
                 .map((n) => (
                   <div
                     key={n.id}
@@ -220,20 +224,34 @@ export default async function UsagePage() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-stone-700">
-                      <span className="text-stone-400">Outcome:</span>{" "}
+                      <span className="text-stone-400">Official outcome:</span>{" "}
                       {n.resolutionType ?? "—"}
                     </p>
-                    {n.fbHelped && (
-                      <p className="mt-1 text-sm text-stone-700">
-                        <span className="text-stone-400">
-                          Helped run a better negotiation:
-                        </span>{" "}
-                        {n.fbHelped}
-                      </p>
-                    )}
-                    {n.fbFavorite && <Feedback label="Favorite" text={n.fbFavorite} />}
-                    {n.fbChange && <Feedback label="Would change" text={n.fbChange} />}
-                    {n.fbOther && <Feedback label="For you" text={n.fbOther} />}
+                    <div className="mt-3 space-y-2">
+                      {n.feedback.map((f) => (
+                        <div
+                          key={f.id}
+                          className="rounded-lg bg-stone-50 p-3"
+                        >
+                          <p className="text-xs font-medium text-stone-500">
+                            {f.party.displayName}
+                          </p>
+                          {f.helped && (
+                            <p className="mt-0.5 text-sm text-stone-700">
+                              <span className="text-stone-400">Better outcome:</span>{" "}
+                              {f.helped}
+                            </p>
+                          )}
+                          {f.favorite && (
+                            <Feedback label="Favorite" text={f.favorite} />
+                          )}
+                          {f.change && (
+                            <Feedback label="Would change" text={f.change} />
+                          )}
+                          {f.other && <Feedback label="For you" text={f.other} />}
+                        </div>
+                      ))}
+                    </div>
                     <p className="mt-2 text-xs text-stone-400">
                       {n.owner.displayName}
                       {n.owner.email && ` · ${n.owner.email}`}

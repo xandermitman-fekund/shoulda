@@ -36,13 +36,9 @@ model Negotiation {
   inviteCode   String    @unique @default(cuid())
   scipab       String? // JSON of the AI-drafted SCIPAB "document of record" (the agreement)
   scipabAt     DateTime? // when the SCIPAB was last drafted
-  // --- Closure (set by the Guide via "End negotiation"): outcome + exit survey ---
+  // --- Closure: the Guide ends the negotiation and declares the official outcome ---
   endedAt        DateTime?
-  resolutionType String? // the picklist outcome the Guide selected
-  fbHelped       String? // Likert: "This app helped me run a better negotiation"
-  fbFavorite     String? // free text: favorite thing
-  fbChange       String? // free text: one thing to change
-  fbOther        String? // free text: anything else for Xander
+  resolutionType String? // the official outcome the Guide selected
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -52,6 +48,26 @@ model Negotiation {
   chatMessages ChatMessage[]
   aiCalls      AiCall[]
   auditLogs    AuditLog[]
+  feedback     Feedback[]
+}
+
+/// One party's end-of-negotiation survey (the Guide and every party may each leave one).
+/// Product feedback for Xander; captured once the negotiation has ended.
+model Feedback {
+  id             String   @id @default(cuid())
+  negotiationId  String
+  negotiation    Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  partyId        String
+  party          Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  resolutionType String? // this person's view of how it ended
+  helped         String? // Likert: "This app helped us reach a better outcome"
+  favorite       String? // free text
+  change         String? // free text
+  other          String? // free text (for Xander)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([negotiationId, partyId])
 }
 
 /// A stakeholder seat in a workspace. Created by the owner (PM); may be a proxy seat
@@ -78,6 +94,7 @@ model Party {
   votes          Vote[]
   intakeMessages IntakeMessage[]
   chatMessages   ChatMessage[]
+  feedback       Feedback[]
 
   @@unique([negotiationId, userId])
 }

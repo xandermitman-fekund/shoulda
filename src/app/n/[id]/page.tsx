@@ -22,37 +22,24 @@ export default async function CasePage({
 
   const limits = await getLimits(id);
 
-  // The Guide's saved exit survey (owner-only), so "Edit outcome" prefills.
-  let initialClosure = null as
-    | {
-        resolutionType: string;
-        fbHelped: string;
-        fbFavorite: string;
-        fbChange: string;
-        fbOther: string;
-      }
-    | null;
-  if (shared.isOwner) {
-    const c = await prisma.negotiation.findUnique({
-      where: { id },
-      select: {
-        resolutionType: true,
-        fbHelped: true,
-        fbFavorite: true,
-        fbChange: true,
-        fbOther: true,
+  // The viewer's own saved survey (so the modal prefills / shows "done").
+  const myFb = await prisma.feedback.findUnique({
+    where: {
+      negotiationId_partyId: {
+        negotiationId: id,
+        partyId: shared.viewerPartyId,
       },
-    });
-    if (c?.resolutionType) {
-      initialClosure = {
-        resolutionType: c.resolutionType,
-        fbHelped: c.fbHelped ?? "",
-        fbFavorite: c.fbFavorite ?? "",
-        fbChange: c.fbChange ?? "",
-        fbOther: c.fbOther ?? "",
-      };
-    }
-  }
+    },
+  });
+  const initialMyFeedback = myFb
+    ? {
+        resolutionType: myFb.resolutionType ?? "",
+        helped: myFb.helped ?? "",
+        favorite: myFb.favorite ?? "",
+        change: myFb.change ?? "",
+        other: myFb.other ?? "",
+      }
+    : null;
 
   // The viewer's own intake chat is private — loaded once, never synced or proxied.
   const myIntake = await prisma.intakeMessage.findMany({
@@ -90,7 +77,7 @@ export default async function CasePage({
       initialOptions={shared.options}
       initialScores={shared.scores}
       initialScipab={shared.scipab}
-      initialClosure={initialClosure}
+      initialMyFeedback={initialMyFeedback}
       limits={limits}
     />
   );
