@@ -13,6 +13,19 @@ function usd(n: number): string {
   return `$${n.toFixed(n < 1 ? 4 : 2)}`;
 }
 
+/** Compact elapsed time (start → resolution), e.g. "2d 3h", "5h 12m", "45m", "30s". */
+function formatDuration(ms: number): string {
+  if (ms < 0) return "—";
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
+}
+
 export default async function UsagePage() {
   const user = await getOrCreateUser();
   if (!user) redirect("/sign-in");
@@ -125,13 +138,14 @@ export default async function UsagePage() {
                 <th className="p-3 text-right">AI calls</th>
                 <th className="p-3 text-right">Cost · mo</th>
                 <th className="p-3 text-right">Cost · all</th>
+                <th className="p-3 text-right">Elapsed</th>
                 <th className="p-3">Last AI activity</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-stone-400">
+                  <td colSpan={9} className="p-6 text-center text-stone-400">
                     No negotiations yet.
                   </td>
                 </tr>
@@ -179,6 +193,16 @@ export default async function UsagePage() {
                     </td>
                     <td className="p-3 text-right tabular-nums font-medium text-stone-900">
                       {usd(cost)}
+                    </td>
+                    <td
+                      className="p-3 text-right tabular-nums text-stone-600"
+                      title="Start → resolution"
+                    >
+                      {neg.endedAt
+                        ? formatDuration(
+                            neg.endedAt.getTime() - neg.createdAt.getTime(),
+                          )
+                        : "—"}
                     </td>
                     <td className="p-3 text-stone-500">
                       {lastAt
