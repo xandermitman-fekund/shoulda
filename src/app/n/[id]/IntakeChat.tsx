@@ -111,9 +111,9 @@ export default function IntakeChat({
   return (
     <section className="flex h-[60vh] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <div className="border-b border-stone-100 px-5 py-3">
-        <p className="text-sm font-medium text-stone-900">Meet the mediator</p>
+        <p className="text-sm font-medium text-stone-900">Meet the guide</p>
         <p className="text-xs text-stone-500">
-          A private chat so the mediator gets to know {partyName}.
+          A private chat so the guide gets to know {partyName}.
         </p>
       </div>
 
@@ -143,7 +143,7 @@ export default function IntakeChat({
             Next: share what matters to you →
           </button>
           <p className="mt-1.5 text-center text-xs text-stone-400">
-            You can keep chatting with the mediator, or move on whenever you&apos;re ready.
+            You can keep chatting with the guide, or move on whenever you&apos;re ready.
           </p>
         </div>
       )}

@@ -32,7 +32,7 @@ export default function ScipabPanel({
           Get to yes — your agreement
         </h2>
         <p className="mt-1 text-sm text-stone-500">
-          When you&apos;ve explored enough on the map, have the mediator draft your{" "}
+          When you&apos;ve explored enough on the map, have the guide draft your{" "}
           <strong>document of record</strong>. It reads everyone&apos;s intake,
           interests, priorities, and scores, then writes up the shared story, the
           recommended win-win, and where you still disagree — using the SCIPAB
@@ -66,7 +66,7 @@ export default function ScipabPanel({
               Your agreement
             </h2>
             <p className="mt-1 text-sm text-stone-500">
-              Drafted by the mediator from everyone&apos;s input — your shared
+              Drafted by the guide from everyone&apos;s input — your shared
               document of record.
             </p>
           </div>

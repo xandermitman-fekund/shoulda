@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireParty } from "@/lib/participant";
+import { requireParty, resolveActingParty, recordAudit } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { recordAiCost } from "@/lib/ai-cost";
@@ -20,94 +20,171 @@ function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
 
-export async function createInterest(negotiationId: string, text: string) {
+export async function createInterest(
+  negotiationId: string,
+  text: string,
+  actingAsPartyId?: string,
+) {
   const t = text.trim();
   if (!t) return null;
-  const party = await requireParty(negotiationId);
-  if (!party) return null;
+  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+  if (!ctx) return null;
   const interest = await prisma.interest.create({
-    data: { negotiationId, ownerPartyId: party.id, text: t },
+    data: { negotiationId, ownerPartyId: ctx.party.id, text: t },
+  });
+  await recordAudit({
+    negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interest.create",
+    detail: `Added interest "${t.slice(0, 60)}"`,
   });
   return { id: interest.id, text: interest.text };
 }
 
-export async function updateInterest(interestId: string, text: string) {
+export async function updateInterest(
+  interestId: string,
+  text: string,
+  actingAsPartyId?: string,
+) {
   const t = text.trim();
   if (!t) return null;
   const interest = await prisma.interest.findUnique({ where: { id: interestId } });
   if (!interest) return null;
-  const party = await requireParty(interest.negotiationId);
-  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  const ctx = await resolveActingParty(interest.negotiationId, actingAsPartyId);
+  if (!ctx || interest.ownerPartyId !== ctx.party.id) return null; // only the owning party's
   await prisma.interest.update({ where: { id: interestId }, data: { text: t } });
+  await recordAudit({
+    negotiationId: interest.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interest.update",
+    detail: `Edited interest to "${t.slice(0, 60)}"`,
+  });
   return { id: interestId, text: t };
 }
 
-export async function deleteInterest(interestId: string) {
+export async function deleteInterest(
+  interestId: string,
+  actingAsPartyId?: string,
+) {
   const interest = await prisma.interest.findUnique({ where: { id: interestId } });
   if (!interest) return null;
-  const party = await requireParty(interest.negotiationId);
-  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  const ctx = await resolveActingParty(interest.negotiationId, actingAsPartyId);
+  if (!ctx || interest.ownerPartyId !== ctx.party.id) return null; // only the owning party's
   await prisma.interest.delete({ where: { id: interestId } });
+  await recordAudit({
+    negotiationId: interest.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interest.delete",
+    detail: `Removed interest "${interest.text.slice(0, 60)}"`,
+  });
   return { id: interestId };
 }
 
-/** Toggle a "must-have" on the caller's interest. Must-haves don't compete for points, so clear any. */
-export async function setMustHave(interestId: string, mustHave: boolean) {
+/** Toggle a "must-have" on a party's interest. Must-haves don't compete for points, so clear any. */
+export async function setMustHave(
+  interestId: string,
+  mustHave: boolean,
+  actingAsPartyId?: string,
+) {
   const interest = await prisma.interest.findUnique({ where: { id: interestId } });
   if (!interest) return null;
-  const party = await requireParty(interest.negotiationId);
-  if (!party || interest.ownerPartyId !== party.id) return null; // only your own
+  const ctx = await resolveActingParty(interest.negotiationId, actingAsPartyId);
+  if (!ctx || interest.ownerPartyId !== ctx.party.id) return null; // only the owning party's
   await prisma.interest.update({ where: { id: interestId }, data: { mustHave } });
   if (mustHave) {
     await prisma.interestPoint.deleteMany({ where: { interestId } });
   }
+  await recordAudit({
+    negotiationId: interest.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interest.mustHave",
+    detail: `${mustHave ? "Marked" : "Unmarked"} "${interest.text.slice(0, 50)}" as must-have`,
+  });
   return { id: interestId, mustHave };
 }
 
-/** Mark the caller's interests as shared with the group. Gates the shared steps until everyone has shared. */
-export async function submitInterests(negotiationId: string) {
-  const party = await requireParty(negotiationId);
-  if (!party) return { ok: false as const };
+/** Mark a party's interests as shared with the group. Gates the shared steps until everyone has shared. */
+export async function submitInterests(
+  negotiationId: string,
+  actingAsPartyId?: string,
+) {
+  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+  if (!ctx) return { ok: false as const };
   await prisma.party.update({
-    where: { id: party.id },
+    where: { id: ctx.party.id },
     data: { interestsReady: true },
   });
-  return { ok: true as const };
-}
-
-/** Re-open the caller's interests for editing (un-share). */
-export async function reopenInterests(negotiationId: string) {
-  const party = await requireParty(negotiationId);
-  if (!party) return { ok: false as const };
-  await prisma.party.update({
-    where: { id: party.id },
-    data: { interestsReady: false },
+  await recordAudit({
+    negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interests.submit",
+    detail: "Shared interests with the group",
   });
   return { ok: true as const };
 }
 
-/** Save the caller's 10-point allocation across *everyone's* interests (their own + the others'). */
+/** Re-open a party's interests for editing (un-share). */
+export async function reopenInterests(
+  negotiationId: string,
+  actingAsPartyId?: string,
+) {
+  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+  if (!ctx) return { ok: false as const };
+  await prisma.party.update({
+    where: { id: ctx.party.id },
+    data: { interestsReady: false },
+  });
+  await recordAudit({
+    negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "interests.reopen",
+    detail: "Re-opened interests for editing",
+  });
+  return { ok: true as const };
+}
+
+/** Save a party's point allocation across *everyone's* interests, capped at that party's budget. */
 export async function saveInterestPoints(
   negotiationId: string,
   allocations: { interestId: string; points: number }[],
+  actingAsPartyId?: string,
 ) {
-  const party = await requireParty(negotiationId);
-  if (!party) return { ok: false as const, error: "You're not a participant." };
+  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+  if (!ctx) return { ok: false as const, error: "You're not a participant." };
+  const budget = ctx.party.pointBudget;
 
   const sum = allocations.reduce((s, a) => s + a.points, 0);
-  if (sum > 10) {
-    return { ok: false as const, error: "Points can add up to at most 10." };
+  if (sum > budget) {
+    return {
+      ok: false as const,
+      error: `Points can add up to at most ${budget}.`,
+    };
   }
-  if (allocations.some((a) => a.points < 0 || a.points > 10)) {
-    return { ok: false as const, error: "Each interest can have 0–10 points." };
+  if (allocations.some((a) => a.points < 0 || a.points > budget)) {
+    return { ok: false as const, error: `Each interest can have 0–${budget} points.` };
   }
   for (const a of allocations) {
     await prisma.interestPoint.upsert({
-      where: { interestId_partyId: { interestId: a.interestId, partyId: party.id } },
-      create: { interestId: a.interestId, partyId: party.id, points: a.points },
+      where: {
+        interestId_partyId: { interestId: a.interestId, partyId: ctx.party.id },
+      },
+      create: { interestId: a.interestId, partyId: ctx.party.id, points: a.points },
       update: { points: a.points },
     });
   }
+  await recordAudit({
+    negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "points.save",
+    detail: `Saved priorities (${sum}/${budget} points)`,
+  });
   return { ok: true as const };
 }
 
@@ -131,7 +208,7 @@ const INTEREST_SCHEMA = {
 /** Ask the AI Mediator to propose the caller's interests from their intake chat. */
 export async function suggestInterests(negotiationId: string): Promise<string[]> {
   const base = await requireParty(negotiationId);
-  if (!base) return [];
+  if (!base || !base.userId) return [];
   if (!(await consumeAiCredit(base.userId))) return [];
   const party = await prisma.party.findUnique({
     where: { id: base.id },
@@ -227,7 +304,7 @@ export async function classifyInterest(
       output_config: { format: { type: "json_schema", schema: CLASSIFY_SCHEMA } },
     } as Parameters<typeof anthropic.messages.create>[0])) as unknown as TextResponse;
 
-    if (party) {
+    if (party?.userId) {
       await recordAiCost({
         negotiationId,
         userId: party.userId,

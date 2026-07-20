@@ -44,15 +44,19 @@ model Negotiation {
   options      Option[]
   chatMessages ChatMessage[]
   aiCalls      AiCall[]
+  auditLogs    AuditLog[]
 }
 
-/// A person's participation in one negotiation (one per user per negotiation), tied to a User account.
+/// A stakeholder seat in a workspace. Created by the owner (PM); may be a proxy seat
+/// (userId null) until a real person claims it via the party's own invite link.
 model Party {
   id             String   @id @default(cuid())
   negotiationId  String
   negotiation    Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String? // null = proxy seat not yet claimed by a real user
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inviteCode     String   @unique @default(cuid()) // per-party invite link token
+  pointBudget    Int      @default(10) // interest points this party may spend (nudger-configurable)
   displayName    String
   about          String   @default("") // <= 500-word general intake summary (not interests)
   role           String   @default("participant") // owner | participant
@@ -69,6 +73,23 @@ model Party {
   chatMessages   ChatMessage[]
 
   @@unique([negotiationId, userId])
+}
+
+/// Per-[workspace × party] change log: who changed what on a party's behalf. Powers the
+/// transparency/trust story so a party can see exactly what was entered for them and by whom.
+model AuditLog {
+  id            String   @id @default(cuid())
+  negotiationId String
+  negotiation   Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  partyId       String // the subject party the change is about
+  actorUserId   String? // who made the change (not FK-constrained, for retention)
+  actorLabel    String // display name of the actor at the time
+  isProxy       Boolean  @default(false) // true = owner acting on another party's behalf
+  action        String // e.g. interest.create | points.save | score.set
+  detail        String? // short human-readable summary
+  createdAt     DateTime @default(now())
+
+  @@index([negotiationId, partyId])
 }
 
 /// Something a party cares about, framed positively (3-5 per party).

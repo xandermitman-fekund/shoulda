@@ -8,6 +8,9 @@ import PrioritiesPanel from "./PrioritiesPanel";
 import OptionsPanel, { type Option } from "./OptionsPanel";
 import ScoringGrid, { type ScoreState } from "./ScoringGrid";
 import MapWorkspace from "./MapWorkspace";
+import ScipabPanel from "./ScipabPanel";
+import PartyManager from "./PartyManager";
+import ChangeLog from "./ChangeLog";
 import {
   createInterest,
   updateInterest,
@@ -19,7 +22,6 @@ import {
   suggestInterests,
   classifyInterest,
 } from "./interests-actions";
-import ScipabPanel from "./ScipabPanel";
 import {
   createOption,
   updateOption,
@@ -30,26 +32,11 @@ import {
 import { setScore } from "./scoring-actions";
 import { draftScipab, type Scipab } from "./scipab-actions";
 import { pollState } from "./sync-actions";
+import type { SharedParty, SharedInterest } from "./load-state";
 import { negotiationRef } from "@/lib/ref";
 
-type Party = { id: string; displayName: string; role: string; interestsReady: boolean };
-type Phase =
-  | "intake"
-  | "interests"
-  | "priorities"
-  | "options"
-  | "scoring"
-  | "map"
-  | "scipab";
-type WorkInterest = {
-  id: string;
-  text: string;
-  mustHave: boolean;
-  ownerPartyId: string; // internal only — who typed it; never exposed in the UI
-  myPoints: number;
-  totalPoints: number;
-  backerIds: string[]; // parties with ≥1 point on this interest (the association)
-};
+type TopTab = "intake" | "map" | "agreement";
+type SubPhase = "chat" | "interests" | "priorities" | "options" | "scoring";
 
 // One badge style per party, assigned by join order. Stable across the workspace.
 const PARTY_BADGE_COLORS = [
@@ -60,12 +47,8 @@ const PARTY_BADGE_COLORS = [
   "bg-amber-100 text-amber-700",
   "bg-teal-100 text-teal-700",
 ];
-export type Backer = {
-  id: string;
-  name: string;
-  initial: string;
-  color: string;
-};
+export type Backer = { id: string; name: string; initial: string; color: string };
+
 type ScoreSeed = {
   partyId: string;
   optionId: string;
@@ -77,12 +60,26 @@ type ScoreSeed = {
 function buildScoreMap(seeds: ScoreSeed[]): Record<string, ScoreState> {
   const m: Record<string, ScoreState> = {};
   for (const s of seeds ?? []) {
-    m[`${s.partyId}|${s.optionId}|${s.interestId}`] = {
-      value: s.value,
-      na: s.na,
-    };
+    m[`${s.partyId}|${s.optionId}|${s.interestId}`] = { value: s.value, na: s.na };
   }
   return m;
+}
+
+// Recompute an interest's totals after a party's points change.
+function withPartyPoints(
+  i: SharedInterest,
+  partyId: string,
+  points: number,
+): SharedInterest {
+  const pointsByParty = { ...i.pointsByParty };
+  if (points > 0) pointsByParty[partyId] = points;
+  else delete pointsByParty[partyId];
+  return {
+    ...i,
+    pointsByParty,
+    totalPoints: Object.values(pointsByParty).reduce((s, n) => s + n, 0),
+    backerIds: Object.keys(pointsByParty),
+  };
 }
 
 export default function CaseWorkspace({
@@ -90,9 +87,9 @@ export default function CaseWorkspace({
   caseLabel,
   status,
   description,
+  isOwner,
+  viewerPartyId,
   parties: initialParties,
-  currentPartyId,
-  inviteCode,
   intakeByParty,
   allInterests,
   initialOptions,
@@ -103,31 +100,36 @@ export default function CaseWorkspace({
   caseLabel: string;
   status: string;
   description: string;
-  parties: Party[];
-  currentPartyId: string;
-  inviteCode: string;
+  isOwner: boolean;
+  viewerPartyId: string;
+  parties: SharedParty[];
   intakeByParty: Record<string, Msg[]>;
-  allInterests: WorkInterest[];
+  allInterests: SharedInterest[];
   initialOptions: Option[];
   initialScores: ScoreSeed[];
   initialScipab: Scipab | null;
 }) {
-  // You are always your own party — no actor switching.
-  const me = currentPartyId;
-  const [parties, setParties] = useState<Party[]>(initialParties);
-  const [phase, setPhase] = useState<Phase>("intake");
+  const [parties, setParties] = useState<SharedParty[]>(initialParties);
+  // Which party the current user is acting as. Non-owners are always their own seat.
+  const [actingPartyId, setActingPartyId] = useState(viewerPartyId);
+  const acting = parties.find((p) => p.id === actingPartyId) ?? parties.find((p) => p.id === viewerPartyId);
+  const actingId = acting?.id ?? viewerPartyId;
+  const actingBudget = acting?.pointBudget ?? 10;
+  const isProxy = isOwner && actingId !== viewerPartyId;
+
+  const [topTab, setTopTab] = useState<TopTab>("map");
+  const [subPhase, setSubPhase] = useState<SubPhase>("chat");
+  const [managing, setManaging] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [msgs, setMsgs] = useState<Record<string, Msg[]>>(intakeByParty);
-  const [interests, setInterests] = useState<WorkInterest[]>(allInterests);
+  const [interests, setInterests] = useState<SharedInterest[]>(allInterests);
   const [readyByParty, setReadyByParty] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(parties.map((p) => [p.id, p.interestsReady])),
+    Object.fromEntries(initialParties.map((p) => [p.id, p.interestsReady])),
   );
-  const [suggestionsByParty, setSuggestionsByParty] = useState<
-    Record<string, string[]>
-  >({});
+  const [suggestionsByParty, setSuggestionsByParty] = useState<Record<string, string[]>>({});
   const [streaming, setStreaming] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const [options, setOptions] = useState<Option[]>(initialOptions);
   const [optionSuggestions, setOptionSuggestions] = useState<
@@ -143,7 +145,14 @@ export default function CaseWorkspace({
   const [draftingScipab, setDraftingScipab] = useState(false);
   const [scipabError, setScipabError] = useState("");
 
-  // ---- Live sync: poll the shared board and merge in everyone else's changes ----
+  // In proxy mode there is no Intake surface — force to Map.
+  useEffect(() => {
+    if (isProxy && topTab === "intake") setTopTab("map");
+  }, [isProxy, topTab]);
+
+  // ---- Live sync ----
+  const actingRef = useRef(actingId);
+  actingRef.current = actingId;
   const lastSync = useRef<string>("");
   useEffect(() => {
     let active = true;
@@ -164,27 +173,27 @@ export default function CaseWorkspace({
         scores: data.scores,
         scipab: data.scipab,
       });
-      if (snap === lastSync.current) return; // nothing changed — skip the churn
+      if (snap === lastSync.current) return;
       lastSync.current = snap;
 
       setParties(data.parties);
-      // Keep my own readiness local (optimistic + authoritative for me).
       setReadyByParty((prev) => {
         const next: Record<string, boolean> = {};
         for (const p of data.parties)
           next[p.id] =
-            p.id === me ? (prev[p.id] ?? p.interestsReady) : p.interestsReady;
+            p.id === actingRef.current ? (prev[p.id] ?? p.interestsReady) : p.interestsReady;
         return next;
       });
       setInterests(data.allInterests);
       setOptions(data.options);
-      // My scores are write-through — keep mine local, take everyone else's from the server.
+      // Keep the acting party's in-flight scores local so they don't flicker mid-edit.
       setScores((prev) => {
         const next = buildScoreMap(data.scores);
+        const keep = actingRef.current;
         for (const key of Object.keys(next))
-          if (key.split("|")[0] === me) delete next[key];
+          if (key.split("|")[0] === keep) delete next[key];
         for (const key of Object.keys(prev))
-          if (key.split("|")[0] === me) next[key] = prev[key];
+          if (key.split("|")[0] === keep) next[key] = prev[key];
         return next;
       });
       setScipab(data.scipab);
@@ -194,19 +203,18 @@ export default function CaseWorkspace({
       active = false;
       clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [negotiationId, me]);
+  }, [negotiationId]);
 
-  const self = parties.find((p) => p.id === me);
-  const others = parties.filter((p) => p.id !== me);
-  const myName = self?.displayName ?? "You";
+  const actingName = acting?.displayName ?? "You";
+  const viewerName = parties.find((p) => p.id === viewerPartyId)?.displayName ?? "You";
 
   // ---- Readiness / the gate ----
-  const submitted = !!readyByParty[me];
-  // Shared steps open once at least one other person has joined and everyone has shared.
+  const submitted = !!readyByParty[actingId];
   const allReady = parties.length >= 2 && parties.every((p) => readyByParty[p.id]);
+  // The owner (nudger) orchestrates freely; only invited real parties are gated.
+  const scoringLocked = !isOwner && !allReady;
 
-  const sortInterests = (list: WorkInterest[]) =>
+  const sortInterests = (list: SharedInterest[]) =>
     [...list].sort(
       (a, b) =>
         Number(b.mustHave) - Number(a.mustHave) ||
@@ -214,7 +222,6 @@ export default function CaseWorkspace({
         a.text.localeCompare(b.text),
     );
 
-  // Resolve a party id into a display badge (initial + color), color stable by join order.
   function badgeFor(partyId: string): Backer {
     const idx = parties.findIndex((p) => p.id === partyId);
     const name = parties[idx]?.displayName ?? "?";
@@ -225,24 +232,25 @@ export default function CaseWorkspace({
       color: PARTY_BADGE_COLORS[(idx < 0 ? 0 : idx) % PARTY_BADGE_COLORS.length],
     };
   }
-  const myBadge = badgeFor(me);
+  const actingBadge = badgeFor(actingId);
+  const actingPoints = (i: SharedInterest) => i.pointsByParty[actingId] ?? 0;
+  const actingSpent = interests
+    .filter((i) => !i.mustHave)
+    .reduce((s, i) => s + actingPoints(i), 0);
 
-  // Your own interests (step 2) — in creation order.
+  // Interests owned by the acting party (Intake "what matters").
   const myInterests = interests
-    .filter((i) => i.ownerPartyId === me)
+    .filter((i) => i.ownerPartyId === actingId)
     .map((i) => ({ id: i.id, text: i.text, mustHave: i.mustHave }));
 
-  // Everyone's interests, for the cross-party priorities step. No authorship shown —
-  // badges come from who's backing each one with points (your own resolves live in the panel).
   const priorityInterests = sortInterests(interests).map((i) => ({
     id: i.id,
     text: i.text,
     mustHave: i.mustHave,
-    myPoints: i.myPoints,
-    otherBackers: i.backerIds.filter((id) => id !== me).map(badgeFor),
+    myPoints: actingPoints(i),
+    otherBackers: i.backerIds.filter((id) => id !== actingId).map(badgeFor),
   }));
 
-  // Everyone's interests ranked by combined points, for the read-only scoring grid.
   const gridInterests = sortInterests(interests).map((i) => ({
     id: i.id,
     text: i.text,
@@ -251,48 +259,28 @@ export default function CaseWorkspace({
     backers: i.backerIds.map(badgeFor),
   }));
 
-  // Everyone's interests for the editable map workspace.
   const mapInterests = interests.map((i) => ({
     id: i.id,
     text: i.text,
     mustHave: i.mustHave,
-    isMine: i.ownerPartyId === me,
-    myPoints: i.myPoints,
+    isMine: i.ownerPartyId === actingId,
+    myPoints: actingPoints(i),
     totalPoints: i.totalPoints,
     backers: i.backerIds.map(badgeFor),
   }));
 
-  const sortedOptions = [...options].sort((a, b) =>
-    a.shortName.localeCompare(b.shortName),
-  );
-  // No-go'd options are hidden from the read-only scoring grid.
+  const sortedOptions = [...options].sort((a, b) => a.shortName.localeCompare(b.shortName));
   const activeOptions = sortedOptions.filter((o) => o.goState !== "no_go");
 
-  function copyInvite() {
-    const link = `${window.location.origin}/join/${inviteCode}`;
-    navigator.clipboard?.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  // ---- Intake chat ----
+  // ---- Intake chat (viewer's own seat only — never proxied) ----
   function updateMsgs(updater: (prev: Msg[]) => Msg[]) {
-    setMsgs((prev) => ({ ...prev, [me]: updater(prev[me] ?? []) }));
+    setMsgs((prev) => ({ ...prev, [viewerPartyId]: updater(prev[viewerPartyId] ?? []) }));
   }
-
-  async function handleSend(
-    text: string,
-    image?: { type: string; data: string },
-  ) {
+  async function handleSend(text: string, image?: { type: string; data: string }) {
     setStreaming(true);
     updateMsgs((prev) => [
       ...prev,
-      {
-        role: "user",
-        content: text,
-        imageType: image?.type,
-        imageData: image?.data,
-      },
+      { role: "user", content: text, imageType: image?.type, imageData: image?.data },
       { role: "assistant", content: "" },
     ]);
     try {
@@ -320,7 +308,7 @@ export default function CaseWorkspace({
         const copy = [...prev];
         copy[copy.length - 1] = {
           role: "assistant",
-          content: "⚠️ Something went wrong reaching the mediator. Try again.",
+          content: "⚠️ Something went wrong reaching the guide. Try again.",
         };
         return copy;
       });
@@ -329,9 +317,9 @@ export default function CaseWorkspace({
     }
   }
 
-  // ---- Interests (yours) ----
+  // ---- Interests (as the acting party) ----
   async function handleAdd(text: string) {
-    const r = await createInterest(negotiationId, text);
+    const r = await createInterest(negotiationId, text, actingId);
     if (r)
       setInterests((prev) => [
         ...prev,
@@ -339,137 +327,98 @@ export default function CaseWorkspace({
           id: r.id,
           text: r.text,
           mustHave: false,
-          ownerPartyId: me,
-          myPoints: 0,
+          ownerPartyId: actingId,
           totalPoints: 0,
           backerIds: [],
+          pointsByParty: {},
         },
       ]);
   }
-
   async function handleEditInterest(id: string, text: string) {
-    await updateInterest(id, text);
+    await updateInterest(id, text, actingId);
     setInterests((prev) => prev.map((i) => (i.id === id ? { ...i, text } : i)));
   }
-
   async function handleDeleteInterest(id: string) {
-    await deleteInterest(id);
+    await deleteInterest(id, actingId);
     setInterests((prev) => prev.filter((i) => i.id !== id));
   }
-
   async function handleToggleMustHave(id: string, mustHave: boolean) {
-    await setMustHave(id, mustHave);
+    await setMustHave(id, mustHave, actingId);
     setInterests((prev) =>
       prev.map((i) =>
         i.id === id
-          ? {
-              ...i,
-              mustHave,
-              myPoints: mustHave ? 0 : i.myPoints,
-              totalPoints: mustHave ? 0 : i.totalPoints,
-              backerIds: mustHave ? [] : i.backerIds,
-            }
+          ? mustHave
+            ? { ...i, mustHave, pointsByParty: {}, totalPoints: 0, backerIds: [] }
+            : { ...i, mustHave }
           : i,
       ),
     );
   }
-
-  async function handleSavePoints(
-    allocs: { interestId: string; points: number }[],
-  ) {
-    const r = await saveInterestPoints(negotiationId, allocs);
+  async function handleSavePoints(allocs: { interestId: string; points: number }[]) {
+    const r = await saveInterestPoints(negotiationId, allocs, actingId);
     if (r.ok) {
       const byId = new Map(allocs.map((a) => [a.interestId, a.points]));
       setInterests((prev) =>
-        prev.map((i) => {
-          if (!byId.has(i.id)) return i;
-          const newMy = byId.get(i.id) ?? 0;
-          const others = i.backerIds.filter((id) => id !== me);
-          return {
-            ...i,
-            myPoints: newMy,
-            totalPoints: i.totalPoints - i.myPoints + newMy,
-            backerIds: newMy > 0 ? [...others, me] : others,
-          };
-        }),
+        prev.map((i) =>
+          byId.has(i.id) ? withPartyPoints(i, actingId, byId.get(i.id) ?? 0) : i,
+        ),
       );
     }
     return r;
   }
-
-  // Set my points on a single interest from the map (rebuilds the full allocation).
   async function handleSetInterestPoints(id: string, points: number) {
     const allocs = interests
       .filter((i) => !i.mustHave)
       .map((i) => ({
         interestId: i.id,
-        points: i.id === id ? Math.max(0, Math.min(10, points)) : i.myPoints,
+        points: i.id === id ? Math.max(0, Math.min(actingBudget, points)) : actingPoints(i),
       }));
-    if (allocs.reduce((s, a) => s + a.points, 0) > 10) return;
+    if (allocs.reduce((s, a) => s + a.points, 0) > actingBudget) return;
     await handleSavePoints(allocs);
   }
-
   async function handleSubmitInterests() {
-    setReadyByParty((prev) => ({ ...prev, [me]: true }));
-    await submitInterests(negotiationId);
+    setReadyByParty((prev) => ({ ...prev, [actingId]: true }));
+    await submitInterests(negotiationId, actingId);
   }
-
   async function handleReopenInterests() {
-    setReadyByParty((prev) => ({ ...prev, [me]: false }));
-    await reopenInterests(negotiationId);
+    setReadyByParty((prev) => ({ ...prev, [actingId]: false }));
+    await reopenInterests(negotiationId, actingId);
   }
-
   async function handleSuggest() {
     setSuggesting(true);
     try {
       const list = await suggestInterests(negotiationId);
-      setSuggestionsByParty((prev) => ({ ...prev, [me]: list }));
+      setSuggestionsByParty((prev) => ({ ...prev, [actingId]: list }));
     } finally {
       setSuggesting(false);
     }
   }
-
   function handleClassify(text: string) {
     return classifyInterest(negotiationId, text);
   }
 
-  // ---- Options (shared) ----
+  // ---- Options (shared; audited to the acting party) ----
   async function handleAddOption(shortName: string, description: string) {
-    const r = await createOption(negotiationId, shortName, description);
+    const r = await createOption(negotiationId, shortName, description, actingId);
     if (r) setOptions((prev) => [...prev, { ...r, goState: null }]);
   }
-
-  async function handleSetGoState(
-    id: string,
-    goState: "go" | "no_go" | null,
-  ) {
-    setOptions((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, goState } : o)),
-    );
-    await setGoState(id, goState);
+  async function handleSetGoState(id: string, goState: "go" | "no_go" | null) {
+    setOptions((prev) => prev.map((o) => (o.id === id ? { ...o, goState } : o)));
+    await setGoState(id, goState, actingId);
   }
-
   async function handleDeleteOption(id: string) {
-    await deleteOption(id);
+    await deleteOption(id, actingId);
     setOptions((prev) => prev.filter((o) => o.id !== id));
   }
-
-  async function handleEditOption(
-    id: string,
-    shortName: string,
-    description: string,
-  ) {
-    const r = await updateOption(id, shortName, description);
+  async function handleEditOption(id: string, shortName: string, description: string) {
+    const r = await updateOption(id, shortName, description, actingId);
     if (r)
       setOptions((prev) =>
         prev.map((o) =>
-          o.id === id
-            ? { ...o, shortName: r.shortName, description: r.description }
-            : o,
+          o.id === id ? { ...o, shortName: r.shortName, description: r.description } : o,
         ),
       );
   }
-
   async function handleSuggestOptions() {
     setSuggestingOptions(true);
     try {
@@ -479,26 +428,19 @@ export default function CaseWorkspace({
     }
   }
 
-  // ---- Scoring (yours) ----
+  // ---- Scoring (as the acting party) ----
   function scoreKey(partyId: string, optionId: string, interestId: string) {
     return `${partyId}|${optionId}|${interestId}`;
   }
-  function getScore(
-    partyId: string,
-    optionId: string,
-    interestId: string,
-  ): ScoreState {
-    return scores[scoreKey(partyId, optionId, interestId)] ?? {
-      value: null,
-      na: false,
-    };
+  function getScore(partyId: string, optionId: string, interestId: string): ScoreState {
+    return scores[scoreKey(partyId, optionId, interestId)] ?? { value: null, na: false };
   }
   async function handleSetScore(
     optionId: string,
     interestId: string,
     next: ScoreState | null,
   ) {
-    const key = scoreKey(me, optionId, interestId);
+    const key = scoreKey(actingId, optionId, interestId);
     setScores((prev) => {
       const copy = { ...prev };
       if (next === null) delete copy[key];
@@ -506,18 +448,21 @@ export default function CaseWorkspace({
       return copy;
     });
     if (next === null) {
-      await setScore(negotiationId, optionId, interestId, { kind: "clear" });
+      await setScore(negotiationId, optionId, interestId, { kind: "clear" }, actingId);
     } else if (next.na) {
-      await setScore(negotiationId, optionId, interestId, { kind: "na" });
+      await setScore(negotiationId, optionId, interestId, { kind: "na" }, actingId);
     } else {
-      await setScore(negotiationId, optionId, interestId, {
-        kind: "value",
-        value: next.value ?? 0,
-      });
+      await setScore(
+        negotiationId,
+        optionId,
+        interestId,
+        { kind: "value", value: next.value ?? 0 },
+        actingId,
+      );
     }
   }
 
-  // ---- The agreement (SCIPAB) ----
+  // ---- Agreement ----
   async function handleDraftScipab() {
     setDraftingScipab(true);
     setScipabError("");
@@ -530,13 +475,30 @@ export default function CaseWorkspace({
     }
   }
 
-  const opener = `Hi ${myName}. I'm your mediator — I'm here to help everyone find a solution you can all say "yes" to. There are no wrong answers here. To start, what's something about you that would help me understand where you're coming from?`;
+  // ---- Party management callbacks (owner) ----
+  const onPartyCreated = (p: SharedParty & { interestsReady?: boolean }) => {
+    setParties((prev) => [...prev, { ...p, interestsReady: false }]);
+    setReadyByParty((prev) => ({ ...prev, [p.id]: false }));
+  };
+  const onPartyRenamed = (id: string, name: string) =>
+    setParties((prev) => prev.map((p) => (p.id === id ? { ...p, displayName: name } : p)));
+  const onPartyBudget = (id: string, budget: number) =>
+    setParties((prev) => prev.map((p) => (p.id === id ? { ...p, pointBudget: budget } : p)));
+  const onPartyDeleted = (id: string) => {
+    setParties((prev) => prev.filter((p) => p.id !== id));
+    setInterests((prev) => prev.filter((i) => i.ownerPartyId !== id));
+    if (actingId === id) setActingPartyId(viewerPartyId);
+  };
+
+  const opener = `Hi ${viewerName}. I'm your guide — I'm here to help capture what matters to you so we can find a solution everyone can get behind. There are no wrong answers. To start, what's something that would help me understand where you're coming from?`;
+
+  const showIntake = !isProxy;
 
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         <Link href="/" className="text-sm text-stone-500 hover:text-stone-800">
-          ← All negotiations
+          ← All workspaces
         </Link>
 
         <header className="mt-4 mb-5">
@@ -549,25 +511,42 @@ export default function CaseWorkspace({
             </span>
           </div>
           {description && <p className="mt-2 text-stone-600">{description}</p>}
-          <p
-            className="mt-2 font-mono text-xs text-stone-400"
-            title="Reference code — what the operator sees instead of your title (your title stays private to participants)"
-          >
+          <p className="mt-2 font-mono text-xs text-stone-400" title="Stable reference code">
             ref {negotiationRef(negotiationId)}
           </p>
         </header>
 
-        {/* Participants + invite */}
+        {/* Control bar */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3">
-          <p className="text-sm text-stone-600">
-            You&apos;re here as{" "}
-            <span className="font-medium text-stone-900">{myName}</span>
-            {others.length > 0 ? (
-              <> · with {others.map((o) => o.displayName).join(", ")}</>
+          <div className="flex items-center gap-2 text-sm text-stone-600">
+            {isOwner ? (
+              <>
+                <span>Acting as</span>
+                <select
+                  value={actingId}
+                  onChange={(e) => setActingPartyId(e.target.value)}
+                  className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-sm font-medium text-stone-900 outline-none focus:border-emerald-500"
+                >
+                  {parties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.displayName}
+                      {p.id === viewerPartyId ? " (you)" : ""}
+                    </option>
+                  ))}
+                </select>
+                {isProxy && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    on their behalf
+                  </span>
+                )}
+              </>
             ) : (
-              <> · no one else has joined yet</>
+              <span>
+                You&apos;re representing{" "}
+                <span className="font-medium text-stone-900">{actingName}</span>
+              </span>
             )}
-          </p>
+          </div>
           <div className="flex items-center gap-3">
             <span
               className="flex items-center gap-1.5 text-xs text-stone-400"
@@ -580,137 +559,174 @@ export default function CaseWorkspace({
               Live
             </span>
             <button
-              onClick={copyInvite}
-              className="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+              onClick={() => setShowHistory((s) => !s)}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
             >
-              {copied ? "Invite link copied ✓" : "Invite others"}
+              {showHistory ? "Hide history" : "History"}
             </button>
+            {isOwner && (
+              <button
+                onClick={() => setManaging((m) => !m)}
+                className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                {managing ? "Done" : "Manage stakeholders"}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Phase tabs */}
+        {isOwner && managing && (
+          <div className="mb-5">
+            <PartyManager
+              negotiationId={negotiationId}
+              parties={parties.map((p) => ({
+                id: p.id,
+                displayName: p.displayName,
+                role: p.role,
+                pointBudget: p.pointBudget,
+                inviteCode: p.inviteCode,
+                claimed: p.claimed,
+                isViewer: p.id === viewerPartyId,
+              }))}
+              onCreated={(p) => onPartyCreated({ ...p, interestsReady: false } as SharedParty)}
+              onRenamed={onPartyRenamed}
+              onBudget={onPartyBudget}
+              onDeleted={onPartyDeleted}
+            />
+          </div>
+        )}
+
+        {showHistory && (
+          <div className="mb-5">
+            <ChangeLog
+              negotiationId={negotiationId}
+              partyId={actingId}
+              partyName={actingName}
+            />
+          </div>
+        )}
+
+        {/* Top-level surfaces */}
         <div className="mb-5 flex flex-wrap gap-1 border-b border-stone-200">
-          <Tab active={phase === "intake"} onClick={() => setPhase("intake")}>
-            1 · Meet the mediator
+          {showIntake && (
+            <Tab active={topTab === "intake"} onClick={() => setTopTab("intake")}>
+              Intake
+            </Tab>
+          )}
+          <Tab active={topTab === "map"} onClick={() => setTopTab("map")}>
+            The map
           </Tab>
-          <Tab active={phase === "interests"} onClick={() => setPhase("interests")}>
-            2 · What matters
-          </Tab>
-          <Tab active={phase === "priorities"} onClick={() => setPhase("priorities")}>
-            3 · Priorities{!allReady && " 🔒"}
-          </Tab>
-          <Tab active={phase === "options"} onClick={() => setPhase("options")}>
-            4 · Options
-          </Tab>
-          <Tab active={phase === "scoring"} onClick={() => setPhase("scoring")}>
-            5 · Scoring{!allReady && " 🔒"}
-          </Tab>
-          <Tab active={phase === "map"} onClick={() => setPhase("map")}>
-            6 · The map
-          </Tab>
-          <Tab active={phase === "scipab"} onClick={() => setPhase("scipab")}>
-            7 · The agreement
+          <Tab active={topTab === "agreement"} onClick={() => setTopTab("agreement")}>
+            The agreement
           </Tab>
         </div>
 
-        {phase === "intake" && (
-          <IntakeChat
-            partyName={myName}
-            opener={opener}
-            messages={msgs[me] ?? []}
-            streaming={streaming}
-            onAdvance={() => setPhase("interests")}
-            onSend={handleSend}
-          />
+        {topTab === "intake" && showIntake && (
+          <div>
+            {/* Intake sub-steps */}
+            <div className="mb-5 flex flex-wrap gap-1 border-b border-stone-100">
+              <SubTab active={subPhase === "chat"} onClick={() => setSubPhase("chat")}>
+                Meet the guide
+              </SubTab>
+              <SubTab active={subPhase === "interests"} onClick={() => setSubPhase("interests")}>
+                What matters
+              </SubTab>
+              <SubTab active={subPhase === "priorities"} onClick={() => setSubPhase("priorities")}>
+                Priorities{!allReady && " 🔒"}
+              </SubTab>
+              <SubTab active={subPhase === "options"} onClick={() => setSubPhase("options")}>
+                Ideas
+              </SubTab>
+              <SubTab active={subPhase === "scoring"} onClick={() => setSubPhase("scoring")}>
+                Scoring{!allReady && " 🔒"}
+              </SubTab>
+            </div>
+
+            {subPhase === "chat" && (
+              <IntakeChat
+                partyName={viewerName}
+                opener={opener}
+                messages={msgs[viewerPartyId] ?? []}
+                streaming={streaming}
+                onAdvance={() => setSubPhase("interests")}
+                onSend={handleSend}
+              />
+            )}
+            {subPhase === "interests" && (
+              <InterestsPanel
+                partyName={actingName}
+                interests={myInterests}
+                suggestions={suggestionsByParty[actingId] ?? []}
+                suggesting={suggesting}
+                submitted={submitted}
+                onAdd={handleAdd}
+                onEdit={handleEditInterest}
+                onDelete={handleDeleteInterest}
+                onToggleMustHave={handleToggleMustHave}
+                onSuggest={handleSuggest}
+                onAcceptSuggestion={(text) => {
+                  handleAdd(text);
+                  setSuggestionsByParty((prev) => ({
+                    ...prev,
+                    [actingId]: (prev[actingId] ?? []).filter((s) => s !== text),
+                  }));
+                }}
+                onClassify={handleClassify}
+                onSubmit={handleSubmitInterests}
+                onReopen={handleReopenInterests}
+              />
+            )}
+            {subPhase === "priorities" &&
+              (allReady ? (
+                <PrioritiesPanel
+                  partyName={actingName}
+                  budget={actingBudget}
+                  interests={priorityInterests}
+                  myBadge={actingBadge}
+                  onSavePoints={handleSavePoints}
+                />
+              ) : (
+                <LockedStep parties={parties} readyByParty={readyByParty} me={actingId} meReady={submitted} onGoShare={() => setSubPhase("interests")} />
+              ))}
+            {subPhase === "options" && (
+              <OptionsPanel
+                options={options}
+                suggestions={optionSuggestions}
+                suggesting={suggestingOptions}
+                onAdd={handleAddOption}
+                onDelete={handleDeleteOption}
+                onSuggest={handleSuggestOptions}
+                onAcceptSuggestion={(name, desc) => handleAddOption(name, desc)}
+                onDismissSuggestion={(i) =>
+                  setOptionSuggestions((prev) => prev.filter((_, idx) => idx !== i))
+                }
+                onSetGoState={handleSetGoState}
+              />
+            )}
+            {subPhase === "scoring" &&
+              (allReady ? (
+                <ScoringGrid
+                  partyName={actingName}
+                  interests={gridInterests}
+                  options={activeOptions}
+                  getScore={(optionId, interestId) => getScore(actingId, optionId, interestId)}
+                  onSet={handleSetScore}
+                />
+              ) : (
+                <LockedStep parties={parties} readyByParty={readyByParty} me={actingId} meReady={submitted} onGoShare={() => setSubPhase("interests")} />
+              ))}
+          </div>
         )}
 
-        {phase === "interests" && (
-          <InterestsPanel
-            partyName={myName}
-            interests={myInterests}
-            suggestions={suggestionsByParty[me] ?? []}
-            suggesting={suggesting}
-            submitted={submitted}
-            onAdd={handleAdd}
-            onEdit={handleEditInterest}
-            onDelete={handleDeleteInterest}
-            onToggleMustHave={handleToggleMustHave}
-            onSuggest={handleSuggest}
-            onAcceptSuggestion={(text) => {
-              handleAdd(text);
-              setSuggestionsByParty((prev) => ({
-                ...prev,
-                [me]: (prev[me] ?? []).filter((s) => s !== text),
-              }));
-            }}
-            onClassify={handleClassify}
-            onSubmit={handleSubmitInterests}
-            onReopen={handleReopenInterests}
-          />
-        )}
-
-        {phase === "priorities" &&
-          (allReady ? (
-            <PrioritiesPanel
-              partyName={myName}
-              interests={priorityInterests}
-              myBadge={myBadge}
-              onSavePoints={handleSavePoints}
-            />
-          ) : (
-            <LockedStep
-              title="Priorities open once everyone's shared"
-              parties={parties}
-              readyByParty={readyByParty}
-              me={me}
-              meReady={submitted}
-              onGoShare={() => setPhase("interests")}
-            />
-          ))}
-
-        {phase === "options" && (
-          <OptionsPanel
-            options={options}
-            suggestions={optionSuggestions}
-            suggesting={suggestingOptions}
-            onAdd={handleAddOption}
-            onDelete={handleDeleteOption}
-            onSuggest={handleSuggestOptions}
-            onAcceptSuggestion={(name, desc) => handleAddOption(name, desc)}
-            onDismissSuggestion={(i) =>
-              setOptionSuggestions((prev) => prev.filter((_, idx) => idx !== i))
-            }
-            onSetGoState={handleSetGoState}
-          />
-        )}
-
-        {phase === "scoring" &&
-          (allReady ? (
-            <ScoringGrid
-              partyName={myName}
-              interests={gridInterests}
-              options={activeOptions}
-              getScore={(optionId, interestId) => getScore(me, optionId, interestId)}
-              onSet={handleSetScore}
-            />
-          ) : (
-            <LockedStep
-              title="Scoring opens once everyone's shared"
-              parties={parties}
-              readyByParty={readyByParty}
-              me={me}
-              meReady={submitted}
-              onGoShare={() => setPhase("interests")}
-            />
-          ))}
-
-        {phase === "map" && (
+        {topTab === "map" && (
           <MapWorkspace
-            me={me}
+            me={actingId}
             parties={parties}
             interests={mapInterests}
             options={sortedOptions}
-            scoringLocked={!allReady}
+            budget={actingBudget}
+            spent={actingSpent}
+            scoringLocked={scoringLocked}
             getScore={getScore}
             onAddInterest={handleAdd}
             onEditInterest={handleEditInterest}
@@ -725,7 +741,7 @@ export default function CaseWorkspace({
           />
         )}
 
-        {phase === "scipab" && (
+        {topTab === "agreement" && (
           <ScipabPanel
             scipab={scipab}
             drafting={draftingScipab}
@@ -736,11 +752,13 @@ export default function CaseWorkspace({
         )}
 
         <p className="mt-4 text-center text-xs text-stone-400">
-          {phase === "map"
-            ? "Green cells are where you already agree."
-            : phase === "scipab"
+          {topTab === "map"
+            ? isProxy
+              ? `You're working on behalf of ${actingName}. Green cells are where they already agree with others.`
+              : "Green cells are where you already agree."
+            : topTab === "agreement"
               ? "Your living document of record — re-draft anytime as things change."
-              : "Invite the others, then work through the steps together."}
+              : "Capture what matters, then head to the map."}
         </p>
       </div>
     </div>
@@ -759,7 +777,7 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
         active
           ? "border-emerald-600 text-stone-900"
           : "border-transparent text-stone-400 hover:text-stone-600"
@@ -770,16 +788,37 @@ function Tab({
   );
 }
 
-/** Shown for the shared steps until everyone has shared their interests. */
+function SubTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-3 py-1.5 text-sm transition-colors ${
+        active
+          ? "border-stone-400 text-stone-800"
+          : "border-transparent text-stone-400 hover:text-stone-600"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Shown for the gated intake sub-steps until everyone has shared their interests. */
 function LockedStep({
-  title,
   parties,
   readyByParty,
   me,
   meReady,
   onGoShare,
 }: {
-  title: string;
   parties: { id: string; displayName: string }[];
   readyByParty: Record<string, boolean>;
   me: string;
@@ -790,25 +829,17 @@ function LockedStep({
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2">
-        <span aria-hidden className="text-lg">
-          🔒
-        </span>
-        <h2 className="text-lg font-medium text-stone-900">{title}</h2>
+        <span aria-hidden className="text-lg">🔒</span>
+        <h2 className="text-lg font-medium text-stone-900">
+          Opens once everyone has shared
+        </h2>
       </div>
       {soloed ? (
         <p className="mt-2 text-sm text-stone-500">
-          You&apos;re the only one here so far. This step opens once someone else joins
-          and shares what matters to them — the whole point is to weigh and score each
-          other&apos;s interests, not just your own. Use{" "}
-          <strong>Invite others</strong> at the top to bring them in.
+          This opens once someone else joins and shares what matters to them.
         </p>
       ) : (
         <>
-          <p className="mt-2 text-sm text-stone-500">
-            This opens once <strong>everyone</strong> has shared their interests. Then
-            you&apos;ll weigh and score the whole group&apos;s interests together —
-            including theirs.
-          </p>
           <ul className="mt-4 space-y-1.5">
             {parties.map((p) => {
               const ready = !!readyByParty[p.id];
@@ -818,9 +849,6 @@ function LockedStep({
                   <span className={ready ? "text-stone-700" : "text-stone-500"}>
                     {p.displayName}
                     {p.id === me ? " (you)" : ""}
-                  </span>
-                  <span className="text-xs text-stone-400">
-                    {ready ? "shared" : "still adding…"}
                   </span>
                 </li>
               );
@@ -832,7 +860,7 @@ function LockedStep({
                 onClick={onGoShare}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
               >
-                Share my interests →
+                Share interests →
               </button>
             )}
             <button

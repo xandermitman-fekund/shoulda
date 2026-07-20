@@ -86,6 +86,8 @@ export default function MapWorkspace({
   parties,
   interests,
   options,
+  budget,
+  spent,
   scoringLocked,
   getScore,
   onAddInterest,
@@ -103,6 +105,8 @@ export default function MapWorkspace({
   parties: Party[];
   interests: MapInterest[];
   options: MapOption[];
+  budget: number;
+  spent: number;
   scoringLocked: boolean;
   getScore: (partyId: string, optionId: string, interestId: string) => ScoreState;
   onAddInterest: (text: string) => void;
@@ -133,9 +137,7 @@ export default function MapWorkspace({
   const cols = [...interests].sort(
     (a, b) => Number(b.mustHave) - Number(a.mustHave) || a.id.localeCompare(b.id),
   );
-  const myTotal = interests
-    .filter((i) => !i.mustHave)
-    .reduce((s, i) => s + i.myPoints, 0);
+  const myTotal = spent;
   const others = parties.filter((p) => p.id !== me);
   const hiddenCount = options.filter((o) => o.goState === "no_go").length;
   const visibleOptions = showHidden
@@ -191,12 +193,27 @@ export default function MapWorkspace({
           score. Green is where you already agree.
         </p>
       </div>
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="shrink-0 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400"
-      >
-        {expanded ? "✕ Exit full screen" : "⤢ Full screen"}
-      </button>
+      <div className="flex shrink-0 items-center gap-3">
+        {!scoringLocked && (
+          <span
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+              spent > budget
+                ? "bg-red-100 text-red-700"
+                : "bg-stone-100 text-stone-600"
+            }`}
+            title="Your interest points used"
+          >
+            {spent} / {budget} pts
+            {spent > budget && ` — remove ${spent - budget}`}
+          </span>
+        )}
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400"
+        >
+          {expanded ? "✕ Exit full screen" : "⤢ Full screen"}
+        </button>
+      </div>
     </div>
   );
 
@@ -333,7 +350,7 @@ export default function MapWorkspace({
               </span>
               <button
                 onClick={() => onSetPoints(i.id, i.myPoints + 1)}
-                disabled={scoringLocked || myTotal >= 10}
+                disabled={scoringLocked || myTotal >= budget}
                 className="h-5 w-5 rounded border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-30"
               >
                 +

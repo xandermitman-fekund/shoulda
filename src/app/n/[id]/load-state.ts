@@ -1,30 +1,38 @@
 import { prisma } from "@/lib/prisma";
 import type { Scipab } from "./scipab-actions";
 
-// The shareable, multi-user state of a negotiation, shaped for the current viewer.
+// The shareable, multi-user state of a workspace, shaped for the current viewer.
 // Single source of truth for both the initial page load and the live-sync poll,
 // so what you see on first load and what arrives via polling never drift apart.
+export type SharedParty = {
+  id: string;
+  displayName: string;
+  role: string;
+  interestsReady: boolean;
+  pointBudget: number;
+  inviteCode: string;
+  claimed: boolean; // a real user holds this seat
+  isViewer: boolean; // this is the current viewer's own seat
+};
+
+export type SharedInterest = {
+  id: string;
+  text: string;
+  mustHave: boolean;
+  ownerPartyId: string;
+  totalPoints: number;
+  backerIds: string[];
+  pointsByParty: Record<string, number>; // partyId -> points, so any acting party can be shown
+};
+
 export type SharedState = {
   label: string;
   description: string;
   status: string;
-  inviteCode: string;
-  currentPartyId: string;
-  parties: {
-    id: string;
-    displayName: string;
-    role: string;
-    interestsReady: boolean;
-  }[];
-  allInterests: {
-    id: string;
-    text: string;
-    mustHave: boolean;
-    ownerPartyId: string;
-    myPoints: number;
-    totalPoints: number;
-    backerIds: string[];
-  }[];
+  isOwner: boolean; // viewer owns the workspace (the PM / nudger)
+  viewerPartyId: string; // the viewer's own seat
+  parties: SharedParty[];
+  allInterests: SharedInterest[];
   options: {
     id: string;
     shortName: string;
@@ -61,25 +69,37 @@ export async function loadSharedState(
     },
   });
   if (!negotiation) return null;
-  const me = negotiation.parties.find((p) => p.userId === userId);
-  if (!me) return null;
 
-  const parties = negotiation.parties.map((p) => ({
+  const isOwner = negotiation.ownerUserId === userId;
+  const me = negotiation.parties.find((p) => p.userId === userId);
+  // Access: you must either own the workspace or hold a seat in it.
+  if (!isOwner && !me) return null;
+  // The owner always has their own auto-created seat; fall back to it defensively.
+  const viewerParty = me ?? negotiation.parties.find((p) => p.userId === userId);
+  if (!viewerParty) return null;
+
+  const parties: SharedParty[] = negotiation.parties.map((p) => ({
     id: p.id,
     displayName: p.displayName,
     role: p.role,
     interestsReady: p.interestsReady,
+    pointBudget: p.pointBudget,
+    inviteCode: p.inviteCode,
+    claimed: p.userId !== null,
+    isViewer: p.id === viewerParty.id,
   }));
 
-  const allInterests = negotiation.parties.flatMap((p) =>
+  const allInterests: SharedInterest[] = negotiation.parties.flatMap((p) =>
     p.interests.map((i) => ({
       id: i.id,
       text: i.text,
       mustHave: i.mustHave,
       ownerPartyId: p.id,
-      myPoints: i.points.find((pt) => pt.partyId === me.id)?.points ?? 0,
       totalPoints: i.points.reduce((s, pt) => s + pt.points, 0),
       backerIds: i.points.filter((pt) => pt.points > 0).map((pt) => pt.partyId),
+      pointsByParty: Object.fromEntries(
+        i.points.map((pt) => [pt.partyId, pt.points]),
+      ),
     })),
   );
 
@@ -113,8 +133,8 @@ export async function loadSharedState(
     label: negotiation.label,
     description: negotiation.description,
     status: negotiation.status,
-    inviteCode: negotiation.inviteCode,
-    currentPartyId: me.id,
+    isOwner,
+    viewerPartyId: viewerParty.id,
     parties,
     allInterests,
     options,

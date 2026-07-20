@@ -58,8 +58,9 @@ export async function draftScipab(
   negotiationId: string,
 ): Promise<{ ok: true; scipab: Scipab } | { ok: false; error: string }> {
   const base = await requireParty(negotiationId);
-  if (!base) return { ok: false, error: "You're not a participant." };
-  if (!(await consumeAiCredit(base.userId)))
+  if (!base || !base.userId) return { ok: false, error: "You're not a participant." };
+  const creditUserId: string = base.userId;
+  if (!(await consumeAiCredit(creditUserId)))
     return { ok: false, error: "Monthly AI limit reached — try again next month." };
 
   const negotiation = await prisma.negotiation.findUnique({
@@ -184,7 +185,7 @@ Write the group's SCIPAB document of record now.`;
     };
     await recordAiCost({
       negotiationId,
-      userId: base.userId,
+      userId: creditUserId,
       kind: "scipab",
       model: MEDIATOR_MODEL,
       usage: response.usage,

@@ -24,11 +24,13 @@ function Badge({ b }: { b: Backer }) {
 
 export default function PrioritiesPanel({
   partyName,
+  budget,
   interests,
   myBadge,
   onSavePoints,
 }: {
   partyName: string;
+  budget: number;
   interests: PriorityInterest[];
   myBadge: Backer;
   onSavePoints: (
@@ -60,15 +62,15 @@ export default function PrioritiesPanel({
   }, [ids]);
 
   const total = pointable.reduce((s, i) => s + (points[i.id] ?? 0), 0);
-  const over = total > 10;
-  const overBy = total - 10;
+  const over = total > budget;
+  const overBy = total - budget;
   const dirty = pointable.some(
     (i) => (points[i.id] ?? 0) !== (savedPoints[i.id] ?? 0),
   );
 
   function bump(id: string, delta: number) {
     setPoints((p) => {
-      const v = Math.max(0, Math.min(10, (p[id] ?? 0) + delta));
+      const v = Math.max(0, Math.min(budget, (p[id] ?? 0) + delta));
       return { ...p, [id]: v };
     });
     setSaveMsg("");
@@ -105,8 +107,8 @@ export default function PrioritiesPanel({
       </h2>
       <p className="mt-1 text-sm text-stone-500">
         These are all the interests on the table — no labels for who suggested what.
-        Spend <strong>up to 10 points</strong> on the ones that matter to you,
-        including the others&apos;. Your badge{" "}
+        Spend <strong>up to {budget} points</strong> on the ones that matter to
+        you, including the others&apos;. Your badge{" "}
         <span className="align-middle">
           <Badge b={myBadge} />
         </span>{" "}
@@ -179,7 +181,7 @@ export default function PrioritiesPanel({
                 over ? "text-red-600" : "text-stone-500"
               }`}
             >
-              {total} / 10 points used
+              {total} / {budget} points used
               {over && ` — remove ${overBy} to save`}
             </span>
             <div className="flex items-center gap-3">

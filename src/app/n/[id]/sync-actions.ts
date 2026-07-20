@@ -1,13 +1,13 @@
 "use server";
 
-import { requireParty } from "@/lib/participant";
+import { getOrCreateUser } from "@/lib/user";
 import { loadSharedState, type SharedState } from "./load-state";
 
-/** Re-fetch the shared negotiation state for live sync. Returns null if not a participant. */
+/** Re-fetch the shared workspace state for live sync. Returns null if not signed in / no access. */
 export async function pollState(
   negotiationId: string,
 ): Promise<SharedState | null> {
-  const party = await requireParty(negotiationId);
-  if (!party) return null;
-  return loadSharedState(negotiationId, party.userId);
+  const user = await getOrCreateUser();
+  if (!user) return null;
+  return loadSharedState(negotiationId, user.id);
 }

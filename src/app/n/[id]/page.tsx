@@ -19,9 +19,9 @@ export default async function CasePage({
   const shared = await loadSharedState(id, user.id);
   if (!shared) notFound();
 
-  // The caller's own intake is private — loaded once, not synced.
+  // The viewer's own intake chat is private — loaded once, never synced or proxied.
   const myIntake = await prisma.intakeMessage.findMany({
-    where: { partyId: shared.currentPartyId },
+    where: { partyId: shared.viewerPartyId },
     orderBy: { createdAt: "asc" },
   });
   const intakeByParty: Record<
@@ -33,7 +33,7 @@ export default async function CasePage({
       imageData?: string;
     }[]
   > = {
-    [shared.currentPartyId]: myIntake.map((m) => ({
+    [shared.viewerPartyId]: myIntake.map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content,
       imageType: m.imageType ?? undefined,
@@ -47,9 +47,9 @@ export default async function CasePage({
       caseLabel={shared.label}
       status={shared.status}
       description={shared.description}
+      isOwner={shared.isOwner}
+      viewerPartyId={shared.viewerPartyId}
       parties={shared.parties}
-      currentPartyId={shared.currentPartyId}
-      inviteCode={shared.inviteCode}
       intakeByParty={intakeByParty}
       allInterests={shared.allInterests}
       initialOptions={shared.options}

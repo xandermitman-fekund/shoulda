@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireParty } from "@/lib/participant";
+import { requireParty, resolveActingParty, recordAudit } from "@/lib/participant";
 import { consumeAiCredit } from "@/lib/ai-usage";
 import { anthropic, MEDIATOR_MODEL } from "@/lib/anthropic";
 import { recordAiCost } from "@/lib/ai-cost";
@@ -15,14 +15,15 @@ function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
 
-/** Add a shared option to the board. Authorship is intentionally NOT recorded. */
+/** Add a shared idea to the board. Ideas are shared (no per-party authorship); the actor is audited. */
 export async function createOption(
   negotiationId: string,
   shortName: string,
   description: string,
+  actingAsPartyId?: string,
 ) {
-  const party = await requireParty(negotiationId);
-  if (!party) return null;
+  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+  if (!ctx) return null;
   const sn = shortName.trim().slice(0, 100);
   if (!sn) return null;
   const option = await prisma.option.create({
@@ -33,6 +34,13 @@ export async function createOption(
       source: "party",
     },
   });
+  await recordAudit({
+    negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "option.create",
+    detail: `Added idea "${sn}"`,
+  });
   return {
     id: option.id,
     shortName: option.shortName,
@@ -40,16 +48,17 @@ export async function createOption(
   };
 }
 
-/** Edit an option's name/description. Any participant may, for now. */
+/** Edit a shared idea's name/description. Any participant may; the actor is audited. */
 export async function updateOption(
   optionId: string,
   shortName: string,
   description: string,
+  actingAsPartyId?: string,
 ) {
   const option = await prisma.option.findUnique({ where: { id: optionId } });
   if (!option) return null;
-  const party = await requireParty(option.negotiationId);
-  if (!party) return null;
+  const ctx = await resolveActingParty(option.negotiationId, actingAsPartyId);
+  if (!ctx) return null;
   const sn = shortName.trim().slice(0, 100);
   if (!sn) return null;
   const desc = description.trim().slice(0, 4000);
@@ -57,29 +66,51 @@ export async function updateOption(
     where: { id: optionId },
     data: { shortName: sn, description: desc },
   });
+  await recordAudit({
+    negotiationId: option.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "option.update",
+    detail: `Edited idea "${sn}"`,
+  });
   return { id: optionId, shortName: sn, description: desc };
 }
 
-/** Remove an option. Any participant may, for now (the decks reserve this for the mediator). */
-export async function deleteOption(optionId: string) {
+/** Remove a shared idea. Any participant may; the actor is audited. */
+export async function deleteOption(optionId: string, actingAsPartyId?: string) {
   const option = await prisma.option.findUnique({ where: { id: optionId } });
   if (!option) return null;
-  const party = await requireParty(option.negotiationId);
-  if (!party) return null;
+  const ctx = await resolveActingParty(option.negotiationId, actingAsPartyId);
+  if (!ctx) return null;
   await prisma.option.delete({ where: { id: optionId } });
+  await recordAudit({
+    negotiationId: option.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "option.delete",
+    detail: `Removed idea "${option.shortName}"`,
+  });
   return { id: optionId };
 }
 
-/** Set an option's shared go/no-go state. Any participant may; last write wins. */
+/** Set an idea's shared go/no-go state. Any participant may; last write wins; the actor is audited. */
 export async function setGoState(
   optionId: string,
   goState: "go" | "no_go" | null,
+  actingAsPartyId?: string,
 ) {
   const option = await prisma.option.findUnique({ where: { id: optionId } });
   if (!option) return null;
-  const party = await requireParty(option.negotiationId);
-  if (!party) return null;
+  const ctx = await resolveActingParty(option.negotiationId, actingAsPartyId);
+  if (!ctx) return null;
   await prisma.option.update({ where: { id: optionId }, data: { goState } });
+  await recordAudit({
+    negotiationId: option.negotiationId,
+    partyId: ctx.party.id,
+    ctx,
+    action: "option.goState",
+    detail: `Set "${option.shortName}" to ${goState ?? "undecided"}`,
+  });
   return { id: optionId, goState };
 }
 
@@ -108,7 +139,7 @@ export async function suggestOptions(
   negotiationId: string,
 ): Promise<{ shortName: string; description: string }[]> {
   const party = await requireParty(negotiationId);
-  if (!party) return [];
+  if (!party || !party.userId) return [];
   if (!(await consumeAiCredit(party.userId))) return [];
 
   const neg = await prisma.negotiation.findUnique({

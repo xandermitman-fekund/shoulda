@@ -72,7 +72,7 @@ export default async function Home() {
             <p className="mx-auto mt-3 max-w-md text-stone-600">
               Got a group decision to make? Surface what everyone actually cares
               about, put ideas on the table, and watch a shared map reveal where
-              you already agree — with an AI mediator guiding the way.
+              you already agree — with an AI guide leading the way.
             </p>
             <div className="mt-7">
               <SignUpButton mode="modal">
@@ -86,7 +86,7 @@ export default async function Home() {
           <>
             <header className="mb-8">
               <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
-                Your negotiations
+                Your workspaces
               </h1>
               <p className="mt-1 text-stone-500">
                 Start a new one, or pick up where you left off.
@@ -138,7 +138,7 @@ export default async function Home() {
                 </h2>
                 <p className="mt-2 text-sm text-stone-600">
                   Common Ground is in a small private pilot right now. You can still
-                  take part in any negotiation you&apos;re{" "}
+                  take part in any workspace you&apos;re{" "}
                   <strong>invited</strong> to — starting your own opens up once
                   you&apos;re admitted.
                 </p>
@@ -158,7 +158,7 @@ export default async function Home() {
             <section>
               <h2 className="mb-4 text-lg font-medium text-stone-900">Recent</h2>
               {cases.length === 0 ? (
-                <p className="text-stone-500">No negotiations yet. Start one above.</p>
+                <p className="text-stone-500">No workspaces yet. Start one above.</p>
               ) : (
                 <ul className="space-y-3">
                   {cases.map((c) => (
