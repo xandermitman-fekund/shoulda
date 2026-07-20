@@ -81,6 +81,25 @@ function Badge({ b }: { b: Backer }) {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      aria-hidden
+      className="h-3.5 w-3.5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 7h12M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m2 0v12a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19V7m3 3.5v6m4-6v6"
+      />
+    </svg>
+  );
+}
+
 export default function MapWorkspace({
   me,
   parties,
@@ -342,21 +361,32 @@ export default function MapWorkspace({
         key={i.id}
         className="sticky top-0 z-10 min-w-[11rem] max-w-[14rem] bg-white p-2 align-top text-left text-xs font-medium text-stone-600"
       >
-        {i.isMine ? (
-          <textarea
-            defaultValue={i.text}
-            rows={2}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== i.text) onEditInterest(i.id, v);
-            }}
-            className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-medium leading-snug text-stone-700 [field-sizing:content] hover:border-stone-200 focus:border-emerald-400 focus:bg-white focus:outline-none"
-          />
-        ) : (
-          <div className="px-1 leading-snug" title={i.text}>
-            {i.text}
-          </div>
-        )}
+        <div className="flex items-start gap-1">
+          {i.isMine ? (
+            <textarea
+              defaultValue={i.text}
+              rows={2}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== i.text) onEditInterest(i.id, v);
+              }}
+              className="min-w-0 flex-1 resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-medium leading-snug text-stone-700 [field-sizing:content] hover:border-stone-200 focus:border-emerald-400 focus:bg-white focus:outline-none"
+            />
+          ) : (
+            <div className="flex-1 px-1 leading-snug" title={i.text}>
+              {i.text}
+            </div>
+          )}
+          {i.isMine && (
+            <button
+              onClick={() => onDeleteInterest(i.id)}
+              title="Delete this interest"
+              className="mt-0.5 shrink-0 rounded p-1 text-stone-300 hover:bg-red-50 hover:text-red-600"
+            >
+              <TrashIcon />
+            </button>
+          )}
+        </div>
 
         <div className="mt-1 flex items-center gap-1 px-1">
           {i.isMine && (
@@ -368,15 +398,6 @@ export default function MapWorkspace({
               }`}
             >
               ★
-            </button>
-          )}
-          {i.isMine && (
-            <button
-              onClick={() => onDeleteInterest(i.id)}
-              title="Remove interest"
-              className="rounded px-1 text-[10px] text-stone-300 hover:bg-stone-100 hover:text-stone-600"
-            >
-              ✕
             </button>
           )}
           {i.backers.map((b) => (
