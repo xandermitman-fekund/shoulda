@@ -16,6 +16,7 @@ export default function InterestsPanel({
   interests,
   atNegotiationLimit,
   maxInterests,
+  addError,
   suggestions,
   suggesting,
   submitted,
@@ -33,6 +34,7 @@ export default function InterestsPanel({
   interests: Interest[];
   atNegotiationLimit: boolean;
   maxInterests: number;
+  addError: string;
   suggestions: string[];
   suggesting: boolean;
   submitted: boolean;
@@ -58,16 +60,22 @@ export default function InterestsPanel({
     setChecking(true);
     setNote(null);
     try {
-      const result = await onClassify(text);
-      if (result.classification === "interest") {
-        onAdd(text);
-        setNewText("");
-      } else {
+      // Classify is a coaching nicety — never let it block adding.
+      let result: InterestClassification | null = null;
+      try {
+        result = await onClassify(text);
+      } catch {
+        result = null;
+      }
+      if (result && result.classification !== "interest") {
         setNote({
           message: result.message,
           suggestion: result.suggestedInterest,
           original: text,
         });
+      } else {
+        onAdd(text);
+        setNewText("");
       }
     } finally {
       setChecking(false);
@@ -256,7 +264,9 @@ export default function InterestsPanel({
             {checking ? "Checking…" : "Add"}
           </button>
         </div>
-        {atNegotiationLimit ? (
+        {addError ? (
+          <p className="text-xs font-medium text-red-600">⚠️ {addError}</p>
+        ) : atNegotiationLimit ? (
           <p className="text-xs text-amber-700">
             This negotiation has reached its {maxInterests}-interest limit. Remove one
             (here or on the map) to add another.

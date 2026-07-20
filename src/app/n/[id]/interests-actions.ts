@@ -21,29 +21,38 @@ function firstText(res: TextResponse): string {
   return res.content?.find((b) => b.type === "text")?.text ?? "";
 }
 
+export type CreateInterestResult =
+  | { id: string; text: string }
+  | { error: string };
+
 export async function createInterest(
   negotiationId: string,
   text: string,
   actingAsPartyId?: string,
-) {
+): Promise<CreateInterestResult> {
   const t = text.trim();
-  if (!t) return null;
-  const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
-  if (!ctx) return null;
-  const count = await prisma.interest.count({ where: { negotiationId } });
-  const { maxInterests } = await getLimits(negotiationId);
-  if (count >= maxInterests) return null; // limit backstop (UI also disables)
-  const interest = await prisma.interest.create({
-    data: { negotiationId, ownerPartyId: ctx.party.id, text: t },
-  });
-  await recordAudit({
-    negotiationId,
-    partyId: ctx.party.id,
-    ctx,
-    action: "interest.create",
-    detail: `Added interest "${t.slice(0, 60)}"`,
-  });
-  return { id: interest.id, text: interest.text };
+  if (!t) return { error: "Empty interest." };
+  try {
+    const ctx = await resolveActingParty(negotiationId, actingAsPartyId);
+    if (!ctx) return { error: "You're not a participant in this negotiation." };
+    const count = await prisma.interest.count({ where: { negotiationId } });
+    const { maxInterests } = await getLimits(negotiationId);
+    if (count >= maxInterests) return { error: `Interest limit reached (${maxInterests}).` };
+    const interest = await prisma.interest.create({
+      data: { negotiationId, ownerPartyId: ctx.party.id, text: t },
+    });
+    await recordAudit({
+      negotiationId,
+      partyId: ctx.party.id,
+      ctx,
+      action: "interest.create",
+      detail: `Added interest "${t.slice(0, 60)}"`,
+    });
+    return { id: interest.id, text: interest.text };
+  } catch (e) {
+    console.error("createInterest failed", e);
+    return { error: `Couldn't save: ${e instanceof Error ? e.message : "unknown error"}` };
+  }
 }
 
 export async function updateInterest(

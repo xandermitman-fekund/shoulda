@@ -125,6 +125,7 @@ export default function CaseWorkspace({
   const [status, setStatus] = useState(initialStatus);
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [myFeedbackDone, setMyFeedbackDone] = useState(!!initialMyFeedback);
+  const [addError, setAddError] = useState("");
   // Which party the current user is acting as. Non-owners are always their own seat.
   const [actingPartyId, setActingPartyId] = useState(viewerPartyId);
   const acting = parties.find((p) => p.id === actingPartyId) ?? parties.find((p) => p.id === viewerPartyId);
@@ -343,7 +344,8 @@ export default function CaseWorkspace({
   // ---- Interests (as the acting party) ----
   async function handleAdd(text: string) {
     const r = await createInterest(negotiationId, text, actingId);
-    if (r)
+    if ("id" in r) {
+      setAddError("");
       setInterests((prev) => [
         ...prev,
         {
@@ -356,6 +358,9 @@ export default function CaseWorkspace({
           pointsByParty: {},
         },
       ]);
+    } else {
+      setAddError(r.error);
+    }
   }
   async function handleEditInterest(id: string, text: string) {
     await updateInterest(id, text, actingId);
@@ -761,6 +766,7 @@ export default function CaseWorkspace({
                 interests={myInterests}
                 atNegotiationLimit={atInterestLimit}
                 maxInterests={limits.maxInterests}
+                addError={addError}
                 suggestions={suggestionsByParty[actingId] ?? []}
                 suggesting={suggesting}
                 submitted={submitted}
