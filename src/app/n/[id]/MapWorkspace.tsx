@@ -340,19 +340,20 @@ export default function MapWorkspace({
     return (
       <th
         key={i.id}
-        className="sticky top-0 z-10 min-w-[8.5rem] max-w-[11rem] bg-white p-2 align-top text-left text-xs font-medium text-stone-600"
+        className="sticky top-0 z-10 min-w-[11rem] max-w-[14rem] bg-white p-2 align-top text-left text-xs font-medium text-stone-600"
       >
         {i.isMine ? (
-          <input
+          <textarea
             defaultValue={i.text}
+            rows={2}
             onBlur={(e) => {
               const v = e.target.value.trim();
               if (v && v !== i.text) onEditInterest(i.id, v);
             }}
-            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-medium text-stone-700 hover:border-stone-200 focus:border-emerald-400 focus:bg-white focus:outline-none"
+            className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-medium leading-snug text-stone-700 [field-sizing:content] hover:border-stone-200 focus:border-emerald-400 focus:bg-white focus:outline-none"
           />
         ) : (
-          <div className="line-clamp-3 px-1" title={i.text}>
+          <div className="px-1 leading-snug" title={i.text}>
             {i.text}
           </div>
         )}
