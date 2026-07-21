@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Common Ground",
-  description: "Find your way to yes, together.",
+  title: "StakeAlign",
+  description: "Get stakeholders to yes, faster.",
 };
 
 export default function RootLayout({

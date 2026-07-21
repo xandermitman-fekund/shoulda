@@ -31,8 +31,11 @@ export default async function Home() {
       <div className="mx-auto w-full max-w-3xl px-6 py-10">
         {/* Top bar */}
         <div className="mb-10 flex items-center justify-between">
-          <span className="font-semibold tracking-tight text-stone-900">
-            Common Ground
+          <span className="flex items-baseline gap-1.5">
+            <span className="font-semibold tracking-tight text-stone-900">
+              StakeAlign
+            </span>
+            <span className="text-xs text-stone-400">by Fekund</span>
           </span>
           <div className="flex items-center gap-3">
             {signedIn ? (
@@ -137,7 +140,7 @@ export default async function Home() {
                   You&apos;re on the waitlist
                 </h2>
                 <p className="mt-2 text-sm text-stone-600">
-                  Common Ground is in a small private pilot right now. You can still
+                  StakeAlign is in a small private pilot right now. You can still
                   take part in any negotiation you&apos;re{" "}
                   <strong>invited</strong> to — starting your own opens up once
                   you&apos;re admitted.
