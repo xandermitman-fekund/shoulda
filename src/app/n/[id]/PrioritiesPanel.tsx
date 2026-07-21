@@ -1,38 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Backer } from "./CaseWorkspace";
 
 export type PriorityInterest = {
   id: string;
   text: string;
   mustHave: boolean;
   myPoints: number;
-  otherBackers: Backer[];
 };
-
-function Badge({ b }: { b: Backer }) {
-  return (
-    <span
-      title={`${b.name} is backing this`}
-      className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-semibold ${b.color}`}
-    >
-      {b.initial}
-    </span>
-  );
-}
 
 export default function PrioritiesPanel({
   partyName,
   budget,
   interests,
-  myBadge,
   onSavePoints,
 }: {
   partyName: string;
   budget: number;
   interests: PriorityInterest[];
-  myBadge: Backer;
   onSavePoints: (
     allocs: { interestId: string; points: number }[],
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -88,18 +73,6 @@ export default function PrioritiesPanel({
     }
   }
 
-  // Badges for one interest: who else is backing it + you, live, if you've put a point on it.
-  function badges(i: PriorityInterest, mine: boolean) {
-    return (
-      <span className="flex shrink-0 items-center gap-1">
-        {i.otherBackers.map((b) => (
-          <Badge key={b.id} b={b} />
-        ))}
-        {mine && <Badge b={myBadge} />}
-      </span>
-    );
-  }
-
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-medium text-stone-900">
@@ -108,12 +81,8 @@ export default function PrioritiesPanel({
       <p className="mt-1 text-sm text-stone-500">
         These are all the interests on the table — no labels for who suggested what.
         Spend <strong>up to {budget} points</strong> on the ones that matter to
-        you, including the others&apos;. Your badge{" "}
-        <span className="align-middle">
-          <Badge b={myBadge} />
-        </span>{" "}
-        appears on each interest you back — take your points off to step away from it.
-        Where badges stack up is your <strong>common ground</strong>.
+        you, including the others&apos;. Take your points off an interest to step
+        away from it.
       </p>
 
       {/* Must-haves: top priority, no points */}
@@ -130,7 +99,6 @@ export default function PrioritiesPanel({
               >
                 <span className="text-amber-600">★</span>
                 <span className="flex-1">{i.text}</span>
-                {badges(i, false)}
               </li>
             ))}
           </ul>
@@ -153,7 +121,6 @@ export default function PrioritiesPanel({
             {pointable.map((i) => (
               <div key={i.id} className="flex items-center gap-3">
                 <span className="flex-1 text-sm text-stone-700">{i.text}</span>
-                {badges(i, (points[i.id] ?? 0) > 0)}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => bump(i.id, -1)}

@@ -250,7 +250,6 @@ export default function CaseWorkspace({
       color: PARTY_BADGE_COLORS[(idx < 0 ? 0 : idx) % PARTY_BADGE_COLORS.length],
     };
   }
-  const actingBadge = badgeFor(actingId);
   const actingPoints = (i: SharedInterest) => i.pointsByParty[actingId] ?? 0;
   const actingSpent = interests
     .filter((i) => !i.mustHave)
@@ -266,7 +265,6 @@ export default function CaseWorkspace({
     text: i.text,
     mustHave: i.mustHave,
     myPoints: actingPoints(i),
-    otherBackers: i.backerIds.filter((id) => id !== actingId).map(badgeFor),
   }));
 
   const gridInterests = sortInterests(interests).map((i) => ({
@@ -793,7 +791,6 @@ export default function CaseWorkspace({
                   partyName={actingName}
                   budget={actingBudget}
                   interests={priorityInterests}
-                  myBadge={actingBadge}
                   onSavePoints={handleSavePoints}
                 />
               ) : (
