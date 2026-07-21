@@ -377,19 +377,18 @@ export default function MapWorkspace({
           )}
         </div>
 
-        {i.isMine && (
-          <div className="mt-1 flex items-center gap-1 px-1">
-            <button
-              onClick={() => onToggleMustHave(i.id, !i.mustHave)}
-              title={i.mustHave ? "Must-have — click to unset" : "Mark as must-have"}
-              className={`rounded px-1 text-[10px] font-medium ${
-                i.mustHave ? "bg-amber-100 text-amber-800" : "border border-stone-200 text-stone-400 hover:bg-stone-100"
-              }`}
-            >
-              ★
-            </button>
-          </div>
-        )}
+        <div className="mt-1 flex items-center gap-1 px-1">
+          {/* Anyone can flag a shared interest as a must-have. */}
+          <button
+            onClick={() => onToggleMustHave(i.id, !i.mustHave)}
+            title={i.mustHave ? "Must-have — click to unset" : "Mark as must-have"}
+            className={`rounded px-1 text-[10px] font-medium ${
+              i.mustHave ? "bg-amber-100 text-amber-800" : "border border-stone-200 text-stone-400 hover:bg-stone-100"
+            }`}
+          >
+            ★
+          </button>
+        </div>
 
         <div className="mt-1 px-1">
           {i.mustHave ? (

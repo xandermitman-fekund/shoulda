@@ -96,7 +96,7 @@ export async function deleteInterest(
   return { id: interestId };
 }
 
-/** Toggle a "must-have" on a party's interest. Must-haves don't compete for points, so clear any. */
+/** Toggle a "must-have" on a shared interest. Any participant may. Must-haves don't compete for points, so clear any. */
 export async function setMustHave(
   interestId: string,
   mustHave: boolean,
@@ -105,7 +105,7 @@ export async function setMustHave(
   const interest = await prisma.interest.findUnique({ where: { id: interestId } });
   if (!interest) return null;
   const ctx = await resolveActingParty(interest.negotiationId, actingAsPartyId);
-  if (!ctx || interest.ownerPartyId !== ctx.party.id) return null; // only the owning party's
+  if (!ctx) return null; // any participant may flag a must-have
   await prisma.interest.update({ where: { id: interestId }, data: { mustHave } });
   if (mustHave) {
     await prisma.interestPoint.deleteMany({ where: { interestId } });
