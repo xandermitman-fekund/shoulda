@@ -163,9 +163,27 @@ export default function MapWorkspace({
   }, [expanded]);
 
   // Stable order so columns don't jump while you edit points. Must-haves first.
-  const cols = [...interests].sort(
-    (a, b) => Number(b.mustHave) - Number(a.mustHave) || a.id.localeCompare(b.id),
+  // Column order is fixed on mount — must-haves first, then most-pointed interests
+  // on the left. Frozen for the session so columns don't jump while you assign
+  // points; it re-sorts on a browser refresh (which reflects the latest points).
+  const [colOrder] = useState<string[]>(() =>
+    [...interests]
+      .sort(
+        (a, b) =>
+          Number(b.mustHave) - Number(a.mustHave) ||
+          b.totalPoints - a.totalPoints ||
+          a.id.localeCompare(b.id),
+      )
+      .map((i) => i.id),
   );
+  const cols = [
+    ...colOrder
+      .map((id) => interests.find((i) => i.id === id))
+      .filter((i): i is MapInterest => Boolean(i)),
+    // Interests added this session weren't in the frozen order — append them
+    // (they sort into place on the next refresh).
+    ...interests.filter((i) => !colOrder.includes(i.id)),
+  ];
   const myTotal = spent;
   const hiddenCount = options.filter((o) => o.goState === "no_go").length;
   const visibleOptions = showHidden
