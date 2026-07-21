@@ -51,7 +51,7 @@ export async function createInterest(
     return { id: interest.id, text: interest.text };
   } catch (e) {
     console.error("createInterest failed", e);
-    return { error: `Couldn't save: ${e instanceof Error ? e.message : "unknown error"}` };
+    return { error: "Couldn't save that interest — please try again." };
   }
 }
 
