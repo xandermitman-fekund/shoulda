@@ -569,11 +569,11 @@ export default function MapWorkspace({
           const myState = getScore(me, o.id, i.id);
           const alLabel =
             al === "green"
-              ? "Agree"
+              ? "Aligned"
               : al === "yellow"
                 ? "Close"
                 : al === "red"
-                  ? "Far apart"
+                  ? "Not aligned"
                   : "Not enough scores yet";
           const breakdown = parties
             .map((p, idx) => {
@@ -614,9 +614,9 @@ export default function MapWorkspace({
 
   const legend = (
     <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-stone-500">
-      <Legend color="bg-emerald-100" label="Agree" />
+      <Legend color="bg-emerald-100" label="Aligned" />
       <Legend color="bg-amber-100" label="Close" />
-      <Legend color="bg-red-100" label="Far apart" />
+      <Legend color="bg-red-100" label="Not aligned" />
       <span className="text-stone-400">
         The number on each idea is its overall score (higher is better). Each
         cell&apos;s color shows how aligned everyone is — hover it to see each
