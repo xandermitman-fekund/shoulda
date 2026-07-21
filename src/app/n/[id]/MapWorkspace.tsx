@@ -74,6 +74,21 @@ function effective(s: ScoreState): number {
 function fmtScore(n: number): string {
   return (Math.round(n * 100) / 100).toString();
 }
+// Option Score = Σ over (person × non-must-have interest) of totalPoints × effective score.
+function optionScoreOf(
+  oId: string,
+  interests: MapInterest[],
+  parties: Party[],
+  getScore: (partyId: string, optionId: string, interestId: string) => ScoreState,
+): number {
+  let sum = 0;
+  for (const i of interests) {
+    if (i.mustHave) continue;
+    for (const p of parties)
+      sum += i.totalPoints * effective(getScore(p.id, oId, i.id));
+  }
+  return sum;
+}
 // A must-have is only met at ≥ 0.75 (75% or 100%); below that the option is Not Viable.
 const VIABLE_THRESHOLD = 0.75;
 
@@ -185,21 +200,33 @@ export default function MapWorkspace({
     ...interests.filter((i) => !colOrder.includes(i.id)),
   ];
   const myTotal = spent;
+  // Row order is fixed on mount — highest Option Score first — and frozen for the
+  // session so rows don't jump while you score. It re-sorts on a browser refresh.
+  const [optOrder] = useState<string[]>(() =>
+    [...options]
+      .sort(
+        (a, b) =>
+          optionScoreOf(b.id, interests, parties, getScore) -
+            optionScoreOf(a.id, interests, parties, getScore) ||
+          a.shortName.localeCompare(b.shortName),
+      )
+      .map((o) => o.id),
+  );
+  const orderedOptions = [
+    ...optOrder
+      .map((id) => options.find((o) => o.id === id))
+      .filter((o): o is MapOption => Boolean(o)),
+    // Ideas added this session weren't in the frozen order — append them (they
+    // sort into place on the next refresh).
+    ...options.filter((o) => !optOrder.includes(o.id)),
+  ];
   const hiddenCount = options.filter((o) => o.goState === "no_go").length;
   const visibleOptions = showHidden
-    ? options
-    : options.filter((o) => o.goState !== "no_go");
+    ? orderedOptions
+    : orderedOptions.filter((o) => o.goState !== "no_go");
 
-  // Option Score = Σ over (person × non-must-have interest) of totalPoints × effective score.
-  function optionScore(oId: string): number {
-    let sum = 0;
-    for (const i of interests) {
-      if (i.mustHave) continue;
-      for (const p of parties)
-        sum += i.totalPoints * effective(getScore(p.id, oId, i.id));
-    }
-    return sum;
-  }
+  const optionScore = (oId: string) =>
+    optionScoreOf(oId, interests, parties, getScore);
   // Not Viable if anyone scores any must-have below the threshold.
   function optionViable(oId: string): boolean {
     for (const i of interests) {
