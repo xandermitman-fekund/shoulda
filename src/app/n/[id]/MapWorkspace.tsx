@@ -21,26 +21,33 @@ export type MapOption = {
 };
 type Party = { id: string; displayName: string };
 
-const BALLS = ["○", "◔", "◑", "◕", "●"];
-function ball(s: ScoreState): string {
-  if (s.na) return "n/a";
-  if (s.value === null) return "·";
-  return BALLS[s.value / 25] ?? "·";
-}
 
 type Align = "green" | "yellow" | "red" | "none";
+
+/**
+ * Degree of alignment across ANY number of parties, via the population standard
+ * deviation of the numeric scores (0–100 scale). Std-dev generalizes far better
+ * than range: a lone dissenter among many barely moves it, whereas max−min would
+ * flip the whole cell red. Thresholds are anchored to the 25-point score steps.
+ */
+function stdDev(nums: number[]): number {
+  const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+  return Math.sqrt(nums.reduce((a, b) => a + (b - mean) ** 2, 0) / nums.length);
+}
 function alignment(states: ScoreState[]): Align {
   const engaged = states.filter((s) => s.na || s.value !== null);
   if (engaged.length < 2) return "none";
-  const nums = engaged.filter((s) => !s.na && s.value !== null).map((s) => s.value as number);
-  const anyNa = engaged.some((s) => s.na);
-  if (anyNa && nums.length > 0) return "red";
+  const nums = engaged
+    .filter((s) => !s.na && s.value !== null)
+    .map((s) => s.value as number);
+  // Everyone marked n/a → they agree it doesn't apply.
   if (nums.length === 0) return "green";
-  const min = Math.min(...nums);
-  const max = Math.max(...nums);
-  if (min === max) return "green";
-  if (max - min <= 25) return "yellow";
-  return "red";
+  // A mix of n/a and numeric answers is a real divergence — never fully "aligned".
+  const naMix = engaged.some((s) => s.na);
+  const sigma = stdDev(nums);
+  if (sigma <= 12.5 && !naMix) return "green"; // tight cluster (≈ within a step)
+  if (sigma <= 25) return "yellow"; // moderate spread
+  return "red"; // far apart
 }
 const BG: Record<Align, string> = {
   green: "bg-emerald-100",
@@ -160,7 +167,6 @@ export default function MapWorkspace({
     (a, b) => Number(b.mustHave) - Number(a.mustHave) || a.id.localeCompare(b.id),
   );
   const myTotal = spent;
-  const others = parties.filter((p) => p.id !== me);
   const hiddenCount = options.filter((o) => o.goState === "no_go").length;
   const visibleOptions = showHidden
     ? options
@@ -543,8 +549,27 @@ export default function MapWorkspace({
           const states = parties.map((p) => getScore(p.id, o.id, i.id));
           const al = alignment(states);
           const myState = getScore(me, o.id, i.id);
+          const alLabel =
+            al === "green"
+              ? "Agree"
+              : al === "yellow"
+                ? "Close"
+                : al === "red"
+                  ? "Far apart"
+                  : "Not enough scores yet";
+          const breakdown = parties
+            .map((p, idx) => {
+              const s = states[idx];
+              const v = s.na ? "n/a" : s.value === null ? "—" : `${s.value}%`;
+              return `${p.displayName}: ${v}`;
+            })
+            .join("\n");
           return (
-            <td key={i.id} className={`p-1 text-center align-middle ${BG[al]}`}>
+            <td
+              key={i.id}
+              title={`${alLabel}\n${breakdown}`}
+              className={`p-1 text-center align-middle ${BG[al]}`}
+            >
               {scoringLocked ? (
                 <span className="text-xs text-stone-300">–</span>
               ) : (
@@ -562,19 +587,6 @@ export default function MapWorkspace({
                   <option value="na">n/a</option>
                 </select>
               )}
-              {others.length > 0 && (
-                <div className="mt-0.5 flex flex-wrap justify-center gap-1 text-[10px] text-stone-500">
-                  {others.map((p) => {
-                    const s = getScore(p.id, o.id, i.id);
-                    return (
-                      <span key={p.id} title={`${p.displayName}: ${ball(s)}`}>
-                        {p.displayName[0]}
-                        {ball(s)}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
             </td>
           );
         })}
@@ -588,8 +600,9 @@ export default function MapWorkspace({
       <Legend color="bg-amber-100" label="Close" />
       <Legend color="bg-red-100" label="Far apart" />
       <span className="text-stone-400">
-        The number on each idea is its overall score (higher is better); cells show
-        each person&apos;s score (the dropdown is yours).
+        The number on each idea is its overall score (higher is better). Each
+        cell&apos;s color shows how aligned everyone is — hover it to see each
+        person&apos;s score. The dropdown is yours.
       </span>
     </div>
   );
