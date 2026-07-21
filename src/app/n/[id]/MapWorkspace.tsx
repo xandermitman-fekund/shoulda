@@ -70,17 +70,6 @@ function fmtScore(n: number): string {
 // A must-have is only met at ≥ 0.75 (75% or 100%); below that the option is Not Viable.
 const VIABLE_THRESHOLD = 0.75;
 
-function Badge({ b }: { b: Backer }) {
-  return (
-    <span
-      title={`${b.name} is backing this`}
-      className={`inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-0.5 text-[10px] font-semibold ${b.color}`}
-    >
-      {b.initial}
-    </span>
-  );
-}
-
 function TrashIcon() {
   return (
     <svg
@@ -388,8 +377,8 @@ export default function MapWorkspace({
           )}
         </div>
 
-        <div className="mt-1 flex items-center gap-1 px-1">
-          {i.isMine && (
+        {i.isMine && (
+          <div className="mt-1 flex items-center gap-1 px-1">
             <button
               onClick={() => onToggleMustHave(i.id, !i.mustHave)}
               title={i.mustHave ? "Must-have — click to unset" : "Mark as must-have"}
@@ -399,11 +388,8 @@ export default function MapWorkspace({
             >
               ★
             </button>
-          )}
-          {i.backers.map((b) => (
-            <Badge key={b.id} b={b} />
-          ))}
-        </div>
+          </div>
+        )}
 
         <div className="mt-1 px-1">
           {i.mustHave ? (
