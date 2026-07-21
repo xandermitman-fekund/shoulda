@@ -169,6 +169,7 @@ export default function MapWorkspace({
   const [newOptName, setNewOptName] = useState("");
   const [newOptDesc, setNewOptDesc] = useState("");
   const [showHidden, setShowHidden] = useState(false);
+  const [hideUnweighted, setHideUnweighted] = useState(false);
 
   useEffect(() => {
     if (!expanded) return;
@@ -199,6 +200,14 @@ export default function MapWorkspace({
     // (they sort into place on the next refresh).
     ...interests.filter((i) => !colOrder.includes(i.id)),
   ];
+  // 0-point interests don't affect any score, so the Guide can collapse them for a
+  // clean decision view. Must-haves are never hidden (they gate viability).
+  const unweightedCount = interests.filter(
+    (i) => !i.mustHave && i.totalPoints === 0,
+  ).length;
+  const visibleCols = hideUnweighted
+    ? cols.filter((i) => i.mustHave || i.totalPoints > 0)
+    : cols;
   const myTotal = spent;
   // Row order is fixed on mount — highest Option Score first — and frozen for the
   // session so rows don't jump while you score. It re-sorts on a browser refresh.
@@ -390,6 +399,17 @@ export default function MapWorkspace({
             className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
           >
             {showHidden ? "Hide no-go'd" : `Show hidden (${hiddenCount})`}
+          </button>
+        )}
+        {unweightedCount > 0 && (
+          <button
+            onClick={() => setHideUnweighted((h) => !h)}
+            title="Interests with 0 points don't affect the score."
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
+          >
+            {hideUnweighted
+              ? `Show unweighted (${unweightedCount})`
+              : `Hide unweighted (${unweightedCount})`}
           </button>
         )}
       </div>
@@ -590,7 +610,7 @@ export default function MapWorkspace({
             </div>
           </div>
         </th>
-        {cols.map((i) => {
+        {visibleCols.map((i) => {
           const states = parties.map((p) => getScore(p.id, o.id, i.id));
           const al = alignment(states);
           const myState = getScore(me, o.id, i.id);
@@ -665,13 +685,13 @@ export default function MapWorkspace({
               <th className="sticky left-0 top-0 z-20 bg-white p-2 text-left text-xs font-medium text-stone-400">
                 idea \ interest
               </th>
-              {cols.map(interestHeader)}
+              {visibleCols.map(interestHeader)}
             </tr>
           </thead>
           <tbody>
             {visibleOptions.length === 0 ? (
               <tr className="border-t border-stone-100">
-                <td colSpan={cols.length + 1} className="p-4 text-sm text-stone-400">
+                <td colSpan={visibleCols.length + 1} className="p-4 text-sm text-stone-400">
                   No ideas yet — add one above to start scoring.
                 </td>
               </tr>
