@@ -264,7 +264,7 @@ export default function MapWorkspace({
 
   const toolbar = (
     <div className="mt-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -282,6 +282,13 @@ export default function MapWorkspace({
           <button
             type="submit"
             disabled={!newInterest.trim() || atInterestLimit}
+            title={
+              atInterestLimit
+                ? "Interest limit reached"
+                : !newInterest.trim()
+                  ? "Enter an interest first"
+                  : "Add interest"
+            }
             className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
           >
             + Interest
@@ -292,29 +299,39 @@ export default function MapWorkspace({
             e.preventDefault();
             addOption();
           }}
-          className="flex gap-1"
+          className="flex flex-col gap-1"
         >
-          <input
-            value={newOptName}
-            onChange={(e) => setNewOptName(e.target.value)}
-            placeholder={atOptionLimit ? "Idea limit reached" : "Add an idea…"}
-            disabled={atOptionLimit}
-            className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
-          />
-          <input
-            value={newOptDesc}
-            onChange={(e) => setNewOptDesc(e.target.value)}
-            placeholder="(detail, optional)"
-            disabled={atOptionLimit}
-            className="w-40 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
-          />
-          <button
-            type="submit"
-            disabled={!newOptName.trim() || atOptionLimit}
-            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
-          >
-            + Idea
-          </button>
+          <div className="flex gap-1">
+            <input
+              value={newOptName}
+              onChange={(e) => setNewOptName(e.target.value)}
+              placeholder={atOptionLimit ? "Idea limit reached" : "Add an idea…"}
+              disabled={atOptionLimit}
+              className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
+            />
+            <button
+              type="submit"
+              disabled={!newOptName.trim() || atOptionLimit}
+              title={
+                atOptionLimit
+                  ? "Idea limit reached"
+                  : !newOptName.trim()
+                    ? "Enter an idea name first"
+                    : "Add idea"
+              }
+              className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
+            >
+              + Idea
+            </button>
+          </div>
+          {newOptName.trim().length > 0 && (
+            <input
+              value={newOptDesc}
+              onChange={(e) => setNewOptDesc(e.target.value)}
+              placeholder="Add a detail (optional)…"
+              className="w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500"
+            />
+          )}
         </form>
         {hiddenCount > 0 && (
           <button
