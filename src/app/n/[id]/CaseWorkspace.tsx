@@ -741,7 +741,7 @@ export default function CaseWorkspace({
                 Priorities{!allReady && " 🔒"}
               </SubTab>
               <SubTab active={subPhase === "options"} onClick={() => setSubPhase("options")}>
-                Ideas
+                Options
               </SubTab>
               <SubTab active={subPhase === "scoring"} onClick={() => setSubPhase("scoring")}>
                 Scoring{!allReady && " 🔒"}

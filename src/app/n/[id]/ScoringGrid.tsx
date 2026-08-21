@@ -32,7 +32,7 @@ export default function ScoringGrid({
   if (interests.length === 0 || options.length === 0) {
     return (
       <section className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-500 shadow-sm">
-        Add some interests (steps 2–3) and a few ideas (step 4) first — then{" "}
+        Add some interests (steps 2–3) and a few options (step 4) first — then{" "}
         {partyName} can score them here.
       </section>
     );
@@ -41,10 +41,10 @@ export default function ScoringGrid({
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-medium text-stone-900">
-        {partyName}: score the ideas
+        {partyName}: score the options
       </h2>
       <p className="mt-1 text-sm text-stone-500">
-        For each idea, how well does it meet each interest? ○ none → ● perfect,
+        For each option, how well does it meet each interest? ○ none → ● perfect,
         “n/a” if it doesn&apos;t apply, or leave blank if no opinion. You score{" "}
         <em>everyone&apos;s</em> interests, not just your own.
       </p>
@@ -54,7 +54,7 @@ export default function ScoringGrid({
           <thead>
             <tr>
               <th className="p-2 text-left text-xs font-medium text-stone-400">
-                idea \ interest
+                option \ interest
               </th>
               {interests.map((i) => (
                 <th

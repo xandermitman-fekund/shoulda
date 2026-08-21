@@ -271,7 +271,7 @@ export default function MapWorkspace({
       <div>
         <h2 className="text-lg font-medium text-stone-900">Negotiation Map</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Everything lives here — add interests &amp; ideas, set your priorities, and
+          Everything lives here — add interests &amp; options, set your priorities, and
           score. Green is where you already agree.
         </p>
       </div>
@@ -365,7 +365,7 @@ export default function MapWorkspace({
             <input
               value={newOptName}
               onChange={(e) => setNewOptName(e.target.value)}
-              placeholder={atOptionLimit ? "Idea limit reached" : "Add an idea…"}
+              placeholder={atOptionLimit ? "Option limit reached" : "Add an option…"}
               disabled={atOptionLimit}
               className="w-48 rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500 disabled:bg-stone-50"
             />
@@ -374,14 +374,14 @@ export default function MapWorkspace({
               disabled={!newOptName.trim() || atOptionLimit}
               title={
                 atOptionLimit
-                  ? "Idea limit reached"
+                  ? "Option limit reached"
                   : !newOptName.trim()
-                    ? "Enter an idea name first"
-                    : "Add idea"
+                    ? "Enter an option name first"
+                    : "Add option"
               }
               className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:border-stone-400 disabled:opacity-40"
             >
-              + Idea
+              + Option
             </button>
           </div>
           {newOptName.trim().length > 0 && (
@@ -417,7 +417,7 @@ export default function MapWorkspace({
         <p className="mt-1.5 text-xs text-amber-700">
           {atInterestLimit && `Interest limit reached (${maxInterests} max).`}
           {atInterestLimit && atOptionLimit && " "}
-          {atOptionLimit && `Idea limit reached (${maxOptions} max).`}{" "}
+          {atOptionLimit && `Option limit reached (${maxOptions} max).`}{" "}
           Remove one to add another.
         </p>
       )}
@@ -428,7 +428,7 @@ export default function MapWorkspace({
     <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
       🔒 Scoring &amp; priorities open once everyone has shared their interests (use
       the <strong>What matters</strong> step). You can still add and edit interests
-      &amp; ideas here now.
+      &amp; options here now.
     </div>
   );
 
@@ -590,7 +590,7 @@ export default function MapWorkspace({
                   onClick={() =>
                     onSetGoState(o.id, o.goState === "no_go" ? null : "no_go")
                   }
-                  title="No-go (hides this idea)"
+                  title="No-go (hides this option)"
                   className={`rounded px-1 text-xs ${
                     o.goState === "no_go"
                       ? "bg-red-100"
@@ -602,7 +602,7 @@ export default function MapWorkspace({
               </div>
               <button
                 onClick={() => onDeleteOption(o.id)}
-                title="Remove idea"
+                title="Remove option"
                 className="rounded px-1 text-xs text-stone-300 hover:bg-stone-100 hover:text-stone-600"
               >
                 ✕
@@ -665,7 +665,7 @@ export default function MapWorkspace({
       <Legend color="bg-amber-100" label="Close" />
       <Legend color="bg-red-100" label="Not aligned" />
       <span className="text-stone-400">
-        The number on each idea is its overall score (higher is better). Each
+        The number on each option is its overall score (higher is better). Each
         cell&apos;s color shows how aligned everyone is — hover it to see each
         person&apos;s score. The dropdown is yours.
       </span>
@@ -683,7 +683,7 @@ export default function MapWorkspace({
           <thead>
             <tr>
               <th className="sticky left-0 top-0 z-20 bg-white p-2 text-left text-xs font-medium text-stone-400">
-                idea \ interest
+                option \ interest
               </th>
               {visibleCols.map(interestHeader)}
             </tr>
@@ -692,7 +692,7 @@ export default function MapWorkspace({
             {visibleOptions.length === 0 ? (
               <tr className="border-t border-stone-100">
                 <td colSpan={visibleCols.length + 1} className="p-4 text-sm text-stone-400">
-                  No ideas yet — add one above to start scoring.
+                  No options yet — add one above to start scoring.
                 </td>
               </tr>
             ) : (

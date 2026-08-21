@@ -43,7 +43,7 @@ export async function createOption(
     partyId: ctx.party.id,
     ctx,
     action: "option.create",
-    detail: `Added idea "${sn}"`,
+    detail: `Added option "${sn}"`,
   });
   return {
     id: option.id,
@@ -75,7 +75,7 @@ export async function updateOption(
     partyId: ctx.party.id,
     ctx,
     action: "option.update",
-    detail: `Edited idea "${sn}"`,
+    detail: `Edited option "${sn}"`,
   });
   return { id: optionId, shortName: sn, description: desc };
 }
@@ -92,7 +92,7 @@ export async function deleteOption(optionId: string, actingAsPartyId?: string) {
     partyId: ctx.party.id,
     ctx,
     action: "option.delete",
-    detail: `Removed idea "${option.shortName}"`,
+    detail: `Removed option "${option.shortName}"`,
   });
   return { id: optionId };
 }

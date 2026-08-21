@@ -293,7 +293,7 @@ export default async function UsagePage() {
           <p className="mt-1 text-sm text-stone-500">
             Only these emails can <strong>create</strong> negotiations. Anyone can
             still join one they&apos;re invited to. Admins are always admitted. Each
-            row&apos;s caps (parties / ideas / interests) apply to that person&apos;s
+            row&apos;s caps (parties / options / interests) apply to that person&apos;s
             negotiations — raise them to unblock a specific customer.
           </p>
 
@@ -339,7 +339,7 @@ export default async function UsagePage() {
                   <th className="p-3">Status</th>
                   <th className="p-3">Note</th>
                   <th className="p-3">Admitted</th>
-                  <th className="p-3">Caps · parties / ideas / interests</th>
+                  <th className="p-3">Caps · parties / options / interests</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>

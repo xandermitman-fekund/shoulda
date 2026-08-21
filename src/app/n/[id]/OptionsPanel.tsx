@@ -53,11 +53,11 @@ export default function OptionsPanel({
   return (
     <section className="space-y-6 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div>
-        <h2 className="text-lg font-medium text-stone-900">Ideas on the table</h2>
+        <h2 className="text-lg font-medium text-stone-900">Options on the table</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Now the creative part — put possible solutions (&ldquo;options&rdquo;)
-          out for everyone to consider. Ideas aren&apos;t labeled with who
-          suggested them, so each one gets a fair look. Aim for at least 3.
+          Now the creative part — put possible solutions out on the table for
+          everyone to consider. Options aren&apos;t labeled with who suggested
+          them, so each one gets a fair look. Aim for at least 3.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default function OptionsPanel({
           disabled={suggesting}
           className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
         >
-          {suggesting ? "Thinking…" : "✨ Suggest ideas"}
+          {suggesting ? "Thinking…" : "✨ Suggest options"}
         </button>
         {suggestions.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -113,7 +113,7 @@ export default function OptionsPanel({
       <div className="space-y-2">
         {shown.length === 0 && hidden.length === 0 && (
           <p className="text-sm text-stone-400">
-            No ideas yet. Add one below or use suggestions.
+            No options yet. Add one below or use suggestions.
           </p>
         )}
         {list.map((o) => {
@@ -154,7 +154,7 @@ export default function OptionsPanel({
                     onClick={() =>
                       onSetGoState(o.id, o.goState === "no_go" ? null : "no_go")
                     }
-                    title="No-go (hides this idea)"
+                    title="No-go (hides this option)"
                     className={`rounded-md px-2 py-1 text-sm ${
                       o.goState === "no_go"
                         ? "bg-red-100"
@@ -165,7 +165,7 @@ export default function OptionsPanel({
                   </button>
                   <button
                     onClick={() => onDelete(o.id)}
-                    title="Remove idea"
+                    title="Remove option"
                     className="rounded-md px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
                   >
                     ✕
@@ -177,7 +177,7 @@ export default function OptionsPanel({
         })}
         <div className="flex items-center justify-between">
           <p className="text-xs text-stone-400">
-            {shown.length} idea{shown.length === 1 ? "" : "s"} · aim for at least 3
+            {shown.length} option{shown.length === 1 ? "" : "s"} · aim for at least 3
           </p>
           {hidden.length > 0 && (
             <button
@@ -212,11 +212,11 @@ export default function OptionsPanel({
           disabled={!name.trim() || atLimit}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
         >
-          Add idea
+          Add option
         </button>
         {atLimit && (
           <p className="text-xs text-amber-700">
-            This negotiation has reached its {maxOptions}-idea limit. Remove one to add
+            This negotiation has reached its {maxOptions}-option limit. Remove one to add
             another.
           </p>
         )}
