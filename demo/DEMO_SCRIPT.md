@@ -143,13 +143,18 @@
 - [ ] Confirm the **solo-owner path never hits a 🔒 lock** (owner bypasses the scoring gate — verify with all 4 proxied parties).
 - [ ] Browser: hide bookmarks, 125–150% zoom, clean profile, no dev/console artifacts.
 - [ ] **Recording:** Screen Studio — capture the screen silently, record the **voiceover separately** and sync in the editor; lean on auto-zoom for Beat 6 (Coach) & Beat 7 (map goes green).
-- [ ] **Reset the board before each take** with the seed script: `DEMO_OWNER_EMAIL=you@… SEED_COMMIT=1 node --env-file=.env demo/seed-demo.mjs` (stages the pre-Coach tension board — see below).
+- [ ] **Reset the board before each take** with the seed script — two stages (see "How the live beats interact with the seed"): `SEED_STAGE=pre` for Beat 3, default (`full`) for Beats 4–8.
 
 ## Decisions / open items
 - **Recording tool:** ✅ Screen Studio; **voiceover recorded separately** (2026-08-21).
 - **Seed data:** `demo/seed-demo.mjs` stages the pre-Coach tension board (4 parties, 6 interests incl. the reframed one + Engineering's ★ must-have, cross-party points → shared badges, 3 first-draft options, scores → red / no green winner). It deliberately **omits the Coach's winning option** so you add it live in Beat 7.
 
-## How the live beats interact with the seed
-- **Beat 3 (reframe):** "Own our biggest market moment" is already on the board (seeded). To *show* the reframe, add a throwaway interest "Announce at the Fall event," let the coaching catch it, then dismiss/accept — the real interest already exists.
-- **Beat 4 (points/badges):** already seeded (badges visible). Nudge a point or two on camera to show it's live.
-- **Beat 6–7 (Coach → green):** the winning option is NOT seeded — you add it live and score it so the map flips green.
+## How the live beats interact with the seed (two stages)
+The reframed interest and the Coach's winning option are the two things *created live on camera*, so neither is in "state 0."
+- **Beat 3 (reframe) — seed `pre`:** state 0 does NOT include "Own our biggest market moment." Type "Announce at the Fall event"; the coaching reframes it and you accept — the interest is **created live**, authentically.
+- **Beats 4–8 — re-seed `full`:** the complete board (incl. the now-existing "market moment" + its points/scores). The edit stitches the cut. Beat 4's badges are already stacked; nudge a point on camera to show it's live.
+- **Beats 6–7 (Coach → green):** the winning option is NOT seeded in either stage — you add it live and score it so the map flips green.
+
+**Seed commands:**
+- State 0 (Beat 3): `DEMO_OWNER_EMAIL=you@… SEED_STAGE=pre SEED_COMMIT=1 node --env-file=.env demo/seed-demo.mjs`
+- Full board (Beats 4–8): `DEMO_OWNER_EMAIL=you@… SEED_COMMIT=1 node --env-file=.env demo/seed-demo.mjs`

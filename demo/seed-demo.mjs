@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 const DATABASE_URL = process.env.DATABASE_URL;
 const OWNER_EMAIL = (process.env.DEMO_OWNER_EMAIL || "").trim();
 const COMMIT = process.env.SEED_COMMIT === "1";
+const STAGE = (process.env.SEED_STAGE || "full").toLowerCase(); // "pre" = state 0 (before the Beat 3 reframe) | "full" = complete pre-Coach board
 
 const LABEL = "Q3 roadmap — which bet do we make first?";
 const DESCRIPTION =
@@ -99,6 +100,13 @@ const scores = {
   },
 };
 
+// The reframed interest is created *live* in Beat 3, so the pre-reframe "state 0"
+// board excludes it (and its points/scores). SEED_STAGE=full includes it.
+const REFRAME_KEY = "market_moment";
+const includeReframe = STAGE !== "pre";
+const seedInterests = interests.filter((i) => includeReframe || i.key !== REFRAME_KEY);
+const keptInterests = new Set(seedInterests.map((i) => i.key));
+
 // ---- Resolve the owner ---------------------------------------------------
 
 const users = await sql`
@@ -118,15 +126,21 @@ const owner = users[0];
 // ---- Plan summary --------------------------------------------------------
 
 const scoreCells = Object.values(scores).reduce(
-  (n, byInterest) => n + Object.values(byInterest).reduce((m, byParty) => m + Object.keys(byParty).length, 0),
+  (n, byInterest) =>
+    n +
+    Object.entries(byInterest).reduce(
+      (m, [ik, byParty]) => m + (keptInterests.has(ik) ? Object.keys(byParty).length : 0),
+      0,
+    ),
   0,
 );
 
 console.log("── StakeAlign demo seed ─────────────────────────────");
 console.log(`Owner:        ${owner.displayName} <${owner.email}>  (${owner.id})`);
 console.log(`Negotiation:  ${LABEL}`);
+console.log(`Stage:        ${STAGE}${includeReframe ? "" : "  (state 0 — reframed interest created live in Beat 3)"}`);
 console.log(`Parties:      ${parties.map((p) => p.name).join(", ")}`);
-console.log(`Interests:    ${interests.length} (★ must-have: ${interests.filter((i) => i.mustHave).map((i) => `"${i.text}"`).join(", ")})`);
+console.log(`Interests:    ${seedInterests.length} (★ must-have: ${seedInterests.filter((i) => i.mustHave).map((i) => `"${i.text}"`).join(", ")})`);
 console.log(`Options:      ${options.map((o) => o.name).join(" · ")}`);
 console.log(`Score cells:  ${scoreCells}`);
 console.log(`Winning option: NOT seeded — add it live in Beat 7.`);
@@ -141,7 +155,7 @@ if (!COMMIT) {
 
 const negId = id();
 const partyId = Object.fromEntries(parties.map((p) => [p.key, id()]));
-const interestId = Object.fromEntries(interests.map((i) => [i.key, id()]));
+const interestId = Object.fromEntries(seedInterests.map((i) => [i.key, id()]));
 const optionId = Object.fromEntries(options.map((o) => [o.key, id()]));
 
 // ---- One atomic transaction ---------------------------------------------
@@ -163,7 +177,7 @@ parties.forEach((p, i) => {
     VALUES (${partyId[p.key]}, ${negId}, ${p.proxy ? null : owner.id}, ${id()}, 10, ${p.name}, ${p.role}, ${i}, true)`);
 });
 
-for (const it of interests) {
+for (const it of seedInterests) {
   q.push(sql`
     INSERT INTO "Interest" (id, "negotiationId", "ownerPartyId", text, "mustHave")
     VALUES (${interestId[it.key]}, ${negId}, ${partyId[it.party]}, ${it.text}, ${it.mustHave})`);
@@ -171,7 +185,7 @@ for (const it of interests) {
 
 for (const [pk, byInterest] of Object.entries(points)) {
   for (const [ik, pts] of Object.entries(byInterest)) {
-    if (pts > 0) {
+    if (pts > 0 && keptInterests.has(ik)) {
       q.push(sql`
         INSERT INTO "InterestPoint" (id, "interestId", "partyId", points)
         VALUES (${id()}, ${interestId[ik]}, ${partyId[pk]}, ${pts})`);
@@ -187,6 +201,7 @@ for (const o of options) {
 
 for (const [ok, byInterest] of Object.entries(scores)) {
   for (const [ik, byParty] of Object.entries(byInterest)) {
+    if (!keptInterests.has(ik)) continue;
     for (const [pk, val] of Object.entries(byParty)) {
       q.push(sql`
         INSERT INTO "Score" (id, "optionId", "interestId", "partyId", value, na)
@@ -198,5 +213,5 @@ for (const [ok, byInterest] of Object.entries(scores)) {
 await sql.transaction(q);
 
 console.log(`✅ Seeded "${LABEL}" (${negId}) for ${owner.email}`);
-console.log(`   ${parties.length} parties · ${interests.length} interests · ${options.length} options · ${scoreCells} scores`);
+console.log(`   ${parties.length} parties · ${seedInterests.length} interests · ${options.length} options · ${scoreCells} scores`);
 console.log(`   Open it in the app, act as each party to review, then record.`);
