@@ -11,6 +11,7 @@ import MapWorkspace from "./MapWorkspace";
 import ScipabPanel from "./ScipabPanel";
 import PartyManager from "./PartyManager";
 import ChangeLog from "./ChangeLog";
+import CoachModal from "./CoachModal";
 import FeedbackModal from "./FeedbackModal";
 import {
   endNegotiation,
@@ -137,6 +138,7 @@ export default function CaseWorkspace({
   const [subPhase, setSubPhase] = useState<SubPhase>("chat");
   const [managing, setManaging] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   const [msgs, setMsgs] = useState<Record<string, Msg[]>>(intakeByParty);
   const [interests, setInterests] = useState<SharedInterest[]>(allInterests);
@@ -617,6 +619,15 @@ export default function CaseWorkspace({
               </span>
               Live
             </span>
+            {isOwner && (
+              <button
+                onClick={() => setCoachOpen(true)}
+                title="Private strategy chat about this negotiation"
+                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+              >
+                🧭 Coach
+              </button>
+            )}
             <button
               onClick={() => setShowHistory((s) => !s)}
               className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600 hover:border-stone-400"
@@ -649,6 +660,14 @@ export default function CaseWorkspace({
               ))}
           </div>
         </div>
+
+        {isOwner && coachOpen && (
+          <CoachModal
+            negotiationId={negotiationId}
+            caseLabel={caseLabel}
+            onClose={() => setCoachOpen(false)}
+          />
+        )}
 
         {status !== "In Progress" && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm text-stone-600">
