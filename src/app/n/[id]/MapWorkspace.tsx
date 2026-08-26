@@ -72,7 +72,7 @@ function effective(s: ScoreState): number {
   return s.na || s.value === null ? 0 : s.value / 100;
 }
 function fmtScore(n: number): string {
-  return (Math.round(n * 100) / 100).toString();
+  return Math.round(n).toString(); // option score shown as a whole number (e.g. 88, not 87.75)
 }
 // Option Score = Σ over (person × non-must-have interest) of totalPoints × effective score.
 function optionScoreOf(
