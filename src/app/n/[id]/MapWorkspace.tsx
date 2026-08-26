@@ -482,25 +482,34 @@ export default function MapWorkspace({
           {i.mustHave ? (
             <span className="text-[10px] font-medium text-amber-600">★ must-have</span>
           ) : (
-            <div className="flex items-center gap-1 text-stone-500">
-              <button
-                onClick={() => onSetPoints(i.id, i.myPoints - 1)}
-                disabled={scoringLocked || i.myPoints <= 0}
-                className="h-5 w-5 rounded border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-30"
-              >
-                −
-              </button>
-              <span className="w-4 text-center text-xs font-medium text-stone-800">
-                {i.myPoints}
-              </span>
-              <button
-                onClick={() => onSetPoints(i.id, i.myPoints + 1)}
-                disabled={scoringLocked || myTotal >= budget}
-                className="h-5 w-5 rounded border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-30"
-              >
-                +
-              </button>
-              <span className="text-[10px] text-stone-400">my pts</span>
+            <div className="space-y-1">
+              {/* Group priority: everyone's points on this interest. This total (not just
+                  the acting seat's share) is what the option scores are weighted by. */}
+              <div className="text-[10px] text-stone-400">
+                <span className="text-xs font-semibold text-stone-800">{i.totalPoints}</span>{" "}
+                {i.totalPoints === 1 ? "pt" : "pts"} total
+              </div>
+              {/* Your own share of that total — editable from the seat you're acting as. */}
+              <div className="flex items-center gap-1 text-stone-500">
+                <button
+                  onClick={() => onSetPoints(i.id, i.myPoints - 1)}
+                  disabled={scoringLocked || i.myPoints <= 0}
+                  className="h-5 w-5 rounded border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="w-4 text-center text-xs font-medium text-stone-800">
+                  {i.myPoints}
+                </span>
+                <button
+                  onClick={() => onSetPoints(i.id, i.myPoints + 1)}
+                  disabled={scoringLocked || myTotal >= budget}
+                  className="h-5 w-5 rounded border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-30"
+                >
+                  +
+                </button>
+                <span className="text-[10px] text-stone-400">mine</span>
+              </div>
             </div>
           )}
         </div>
