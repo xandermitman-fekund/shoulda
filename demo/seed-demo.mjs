@@ -153,7 +153,14 @@ if (!COMMIT) {
 
 // ---- Build ids -----------------------------------------------------------
 
-const negId = id();
+// Reuse the existing demo negotiation's id if one is already there, so the URL stays
+// stable across re-seeds (pre ↔ full). We still wipe + rebuild its contents below;
+// only the id (and thus the /n/<id> link) is preserved.
+const existingNeg = await sql`
+  SELECT id FROM "Negotiation"
+  WHERE label = ${LABEL} AND "ownerUserId" = ${owner.id}
+  ORDER BY "createdAt" ASC LIMIT 1`;
+const negId = existingNeg[0]?.id ?? id();
 const partyId = Object.fromEntries(parties.map((p) => [p.key, id()]));
 const interestId = Object.fromEntries(seedInterests.map((i) => [i.key, id()]));
 const optionId = Object.fromEntries(options.map((o) => [o.key, id()]));

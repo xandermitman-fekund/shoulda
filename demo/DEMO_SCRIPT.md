@@ -118,7 +118,8 @@
 🎙️ **Narration:**
 > "So I take its suggestion, add that option, and re-score. And there it is — the map goes green. A win-win that satisfies almost everyone, that nobody had to argue into existence. Objective criteria, not the loudest voice."
 
-🖱️ **Actions:** Add the Coach's option (**"A focused differentiator, launch-ready by Fall"**), re-score across parties so it trends **green** and tops the option score. 👍 **Go**. Optional **"⤢ Full screen"** beauty shot.
+🖱️ **Actions:** Add the Coach's option (**"A focused differentiator, launch-ready by Fall"**) live. Then re-score it — **don't do this by hand** (four seats × six interests); run `demo/score-winner.mjs` (it finds the option by that exact name and writes green-and-viable scores), refresh, and it trends **green** and tops the option score. 👍 **Go**. Optional **"⤢ Full screen"** beauty shot.
+> _Score command:_ `DEMO_OWNER_EMAIL=you@… SEED_COMMIT=1 node --env-file=.env demo/score-winner.mjs`
 🖥️ **On screen:** Map goes green on the new option; it's the highest option score.
 
 ---
@@ -153,7 +154,7 @@
 The reframed interest and the Coach's winning option are the two things *created live on camera*, so neither is in "state 0."
 - **Beat 3 (reframe) — seed `pre`:** state 0 does NOT include "Own our biggest market moment." Type "Announce at the Fall event"; the coaching reframes it and you accept — the interest is **created live**, authentically.
 - **Beats 4–8 — re-seed `full`:** the complete board (incl. the now-existing "market moment" + its points/scores). The edit stitches the cut. Beat 4's badges are already stacked; nudge a point on camera to show it's live.
-- **Beats 6–7 (Coach → green):** the winning option is NOT seeded in either stage — you add it live and score it so the map flips green.
+- **Beats 6–7 (Coach → green):** the winning option is NOT seeded in either stage — you add it live, then let `demo/score-winner.mjs` score it (green + viable + leading) so the map flips green without hand-editing 24 cells across four seats.
 
 **Seed commands:**
 - State 0 (Beat 3): `DEMO_OWNER_EMAIL=you@… SEED_STAGE=pre SEED_COMMIT=1 node --env-file=.env demo/seed-demo.mjs`
