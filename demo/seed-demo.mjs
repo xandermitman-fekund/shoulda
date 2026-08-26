@@ -48,9 +48,13 @@ const parties = [
 ];
 
 const interests = [
-  { key: "market_moment", party: "product", text: "Own our biggest market moment of the year", mustHave: false },
+  // The reframe interest. Owned by PRODUCT (your own seat) so the intake assistant is
+  // available for the Beat 3 reframe — proxy seats hide the Intake tab. Same interest in
+  // both stages; only its wording changes: `preText` is the shallow, deliverable-flavored
+  // framing shown in "pre"; `text` is the deeper interest it reframes into. Beat 3 = you
+  // see the assistant name that distinction, then edit this one line yourself, pre → text.
+  { key: "market_moment", party: "product", text: "Own our biggest market moment of the year", preText: "A launch with real press and momentum", mustHave: false },
   { key: "differentiate", party: "product", text: "Differentiate in the market", mustHave: false },
-  { key: "press", party: "marketing", text: "A launch with real press and momentum", mustHave: false },
   { key: "neutralize", party: "sales", text: "Neutralize the competition on live deals", mustHave: false },
   { key: "no_debt", party: "engineering", text: "No new critical tech debt", mustHave: true },
   { key: "sustain", party: "engineering", text: "A pace we can sustain after launch", mustHave: false },
@@ -59,7 +63,7 @@ const interests = [
 // points[party][interest] — 10 per party; cross-party backing creates the shared badges.
 const points = {
   product: { market_moment: 5, differentiate: 5 },
-  marketing: { market_moment: 6, press: 4 },
+  marketing: { market_moment: 6, differentiate: 4 }, // backs Product's market-moment interest + differentiation
   sales: { neutralize: 6, market_moment: 2, differentiate: 2 },
   engineering: { sustain: 7, differentiate: 3 }, // must-have gets no points (sits above them)
 };
@@ -77,7 +81,6 @@ const scores = {
   flashy: {
     market_moment: { product: 100, marketing: 100, sales: 75, engineering: 50 },
     differentiate: { product: 100, marketing: 75, sales: 75, engineering: 25 },
-    press: { product: 75, marketing: 100, sales: 50 },
     neutralize: { product: 75, marketing: 75, sales: 100, engineering: 25 },
     no_debt: { product: 25, marketing: 25, sales: 25, engineering: 0 }, // ★ must-have violated → NOT viable
     sustain: { product: 25, marketing: 0, sales: 25, engineering: 0 },
@@ -85,7 +88,6 @@ const scores = {
   rearch: {
     market_moment: { product: 25, marketing: 0, sales: 0, engineering: 50 },
     differentiate: { product: 25, marketing: 25, sales: 0, engineering: 50 },
-    press: { product: 0, marketing: 0, sales: 0 },
     neutralize: { product: 0, marketing: 0, sales: 25, engineering: 25 },
     no_debt: { product: 100, marketing: 75, sales: 75, engineering: 100 },
     sustain: { product: 75, marketing: 75, sales: 75, engineering: 100 },
@@ -93,19 +95,20 @@ const scores = {
   marketplace: {
     market_moment: { product: 50, marketing: 50, sales: 50, engineering: 50 },
     differentiate: { product: 50, marketing: 50, sales: 75, engineering: 50 },
-    press: { product: 50, marketing: 50, sales: 25 },
     neutralize: { product: 50, marketing: 25, sales: 75, engineering: 50 },
     no_debt: { product: 50, marketing: 50, sales: 50, engineering: 50 },
     sustain: { product: 50, marketing: 50, sales: 50, engineering: 75 },
   },
 };
 
-// The reframed interest is created *live* in Beat 3, so the pre-reframe "state 0"
-// board excludes it (and its points/scores). SEED_STAGE=full includes it.
-const REFRAME_KEY = "market_moment";
-const includeReframe = STAGE !== "pre";
-const seedInterests = interests.filter((i) => includeReframe || i.key !== REFRAME_KEY);
+// The reframe interest is present in BOTH stages — only its wording changes. In "pre"
+// it shows its shallow framing (preText); in "full" it shows the reframed interest text.
+// Beat 3 is that reframe: edit the one interest's text from the shallow line to the deep one.
+const seedInterests = interests.map((i) =>
+  STAGE === "pre" && i.preText ? { ...i, text: i.preText } : i,
+);
 const keptInterests = new Set(seedInterests.map((i) => i.key));
+const reframeInterest = seedInterests.find((i) => i.preText);
 
 // ---- Resolve the owner ---------------------------------------------------
 
@@ -138,7 +141,8 @@ const scoreCells = Object.values(scores).reduce(
 console.log("── StakeAlign demo seed ─────────────────────────────");
 console.log(`Owner:        ${owner.displayName} <${owner.email}>  (${owner.id})`);
 console.log(`Negotiation:  ${LABEL}`);
-console.log(`Stage:        ${STAGE}${includeReframe ? "" : "  (state 0 — reframed interest created live in Beat 3)"}`);
+console.log(`Stage:        ${STAGE}${STAGE === "pre" ? "  (state 0 — reframe interest shows its shallow framing)" : ""}`);
+if (reframeInterest) console.log(`Reframe:      "${reframeInterest.text}"${STAGE === "pre" ? `  → Beat 3 reframes to "${interests.find((i) => i.preText).text}"` : ""}`);
 console.log(`Parties:      ${parties.map((p) => p.name).join(", ")}`);
 console.log(`Interests:    ${seedInterests.length} (★ must-have: ${seedInterests.filter((i) => i.mustHave).map((i) => `"${i.text}"`).join(", ")})`);
 console.log(`Options:      ${options.map((o) => o.name).join(" · ")}`);
