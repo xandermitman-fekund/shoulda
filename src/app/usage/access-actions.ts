@@ -22,9 +22,24 @@ export async function addToAllowlist(formData: FormData) {
   if (!email || !email.includes("@")) return;
   await prisma.allowlist.upsert({
     where: { email },
-    create: { email, note, addedBy: admin.id },
-    update: { note: note ?? undefined },
+    // Admin-added = pre-approved (admitting IS approving). Re-admitting a
+    // self-requested (pending) email approves it too.
+    create: { email, note, addedBy: admin.id, approved: true },
+    update: { note: note ?? undefined, approved: true },
   });
+  revalidatePath("/usage");
+}
+
+/** Approve or un-approve a pilot email — this is the create-negotiation gate. Admin only. */
+export async function setAllowlistApproval(formData: FormData) {
+  const admin = await requireAdmin();
+  if (!admin) return;
+  const id = String(formData.get("id") ?? "");
+  const approved = String(formData.get("approved") ?? "") === "true";
+  if (!id) return;
+  await prisma.allowlist
+    .update({ where: { id }, data: { approved } })
+    .catch(() => {});
   revalidatePath("/usage");
 }
 

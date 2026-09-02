@@ -20,5 +20,7 @@ export async function isAdmitted(email: string | null | undefined): Promise<bool
   const row = await prisma.allowlist.findUnique({
     where: { email: email.toLowerCase() },
   });
-  return Boolean(row);
+  // A row alone isn't enough now — it must be approved. Self-requested rows sit
+  // here as approved=false until an admin flips them in /usage.
+  return Boolean(row?.approved);
 }

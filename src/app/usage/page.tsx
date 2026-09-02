@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import { isAdminEmail } from "@/lib/admin";
 import { negotiationRef } from "@/lib/ref";
-import { addToAllowlist, removeFromAllowlist } from "./access-actions";
+import {
+  addToAllowlist,
+  removeFromAllowlist,
+  setAllowlistApproval,
+} from "./access-actions";
 import { setAllowlistLimits } from "./settings-actions";
 
 export const dynamic = "force-dynamic";
@@ -291,8 +295,10 @@ export default async function UsagePage() {
         <section className="mt-10">
           <h2 className="text-lg font-medium text-stone-900">Pilot access</h2>
           <p className="mt-1 text-sm text-stone-500">
-            Only these emails can <strong>create</strong> negotiations. Anyone can
-            still join one they&apos;re invited to. Admins are always admitted. Each
+            Only <strong>approved</strong> emails can <strong>create</strong>{" "}
+            negotiations. Anyone can still join one they&apos;re invited to. Admins
+            are always admitted. People who opt in from the app land here as{" "}
+            <strong>not approved</strong> — flip the toggle to let them in. Each
             row&apos;s caps (parties / options / interests) apply to that person&apos;s
             negotiations — raise them to unblock a specific customer.
           </p>
@@ -337,6 +343,7 @@ export default async function UsagePage() {
                 <tr className="border-b border-stone-200 text-left text-xs font-medium uppercase tracking-wide text-stone-400">
                   <th className="p-3">Email</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3">Approved</th>
                   <th className="p-3">Note</th>
                   <th className="p-3">Admitted</th>
                   <th className="p-3">Caps · parties / options / interests</th>
@@ -346,7 +353,7 @@ export default async function UsagePage() {
               <tbody>
                 {allowlist.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-stone-400">
+                    <td colSpan={7} className="p-6 text-center text-stone-400">
                       No one admitted yet. Add an email above to start the pilot.
                     </td>
                   </tr>
@@ -367,6 +374,31 @@ export default async function UsagePage() {
                             invited
                           </span>
                         )}
+                      </td>
+                      <td className="p-3">
+                        <form action={setAllowlistApproval}>
+                          <input type="hidden" name="id" value={a.id} />
+                          <input
+                            type="hidden"
+                            name="approved"
+                            value={a.approved ? "false" : "true"}
+                          />
+                          <button
+                            type="submit"
+                            title={
+                              a.approved
+                                ? "Approved — click to revoke approval"
+                                : "Not approved — click to approve"
+                            }
+                            className={
+                              a.approved
+                                ? "rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
+                                : "rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                            }
+                          >
+                            {a.approved ? "✓ Approved" : "Approve"}
+                          </button>
+                        </form>
                       </td>
                       <td className="p-3 text-stone-500">{a.note ?? "—"}</td>
                       <td className="p-3 text-stone-500">

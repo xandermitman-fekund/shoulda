@@ -232,7 +232,8 @@ model Allowlist {
   id           String   @id @default(cuid())
   email        String   @unique
   note         String?
-  addedBy      String? // admin User id who admitted them
+  addedBy      String? // admin User id who admitted them (null = self-requested)
+  approved     Boolean  @default(false) // gate: only approved emails may create. Admin-added rows are set true; self-requested rows start false until an admin toggles them.
   maxParties   Int      @default(5) // max parties per negotiation they own
   maxOptions   Int      @default(7) // max ideas per negotiation (total across all parties)
   maxInterests Int      @default(7) // max interests per negotiation (total across all parties)

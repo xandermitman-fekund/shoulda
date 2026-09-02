@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 import { isAdminEmail } from "@/lib/admin";
 import { isAdmitted } from "@/lib/access";
-import { createCase } from "./actions";
+import { createCase, requestPilotAccess } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,16 @@ export default async function Home() {
   const signedIn = Boolean(user);
   const admin = isAdminEmail(user?.email);
   const admitted = signedIn ? await isAdmitted(user?.email) : false;
-  const requestUrl = process.env.PILOT_REQUEST_URL ?? "";
+  // Has this signed-in, not-yet-admitted user already opted into the pilot?
+  // (A row exists but isn't approved → their request is pending.)
+  const pendingRequest =
+    signedIn && !admitted && user?.email
+      ? Boolean(
+          await prisma.allowlist.findUnique({
+            where: { email: user.email.toLowerCase() },
+          }),
+        )
+      : false;
 
   const cases = user
     ? await prisma.negotiation.findMany({
@@ -145,15 +154,19 @@ export default async function Home() {
                   <strong>invited</strong> to — starting your own opens up once
                   you&apos;re admitted.
                 </p>
-                {requestUrl && (
-                  <a
-                    href={requestUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-                  >
-                    Request access →
-                  </a>
+                {pendingRequest ? (
+                  <p className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    ✓ Request received — we&apos;ll let you in soon.
+                  </p>
+                ) : (
+                  <form action={requestPilotAccess} className="mt-4">
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                    >
+                      Request to join the pilot →
+                    </button>
+                  </form>
                 )}
               </section>
             )}
