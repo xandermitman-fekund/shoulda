@@ -146,7 +146,7 @@ export default async function Home() {
             ) : (
               <section className="mb-10 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-medium text-stone-900">
-                  You&apos;re on the waitlist
+                  Join the pilot
                 </h2>
                 <p className="mt-2 text-sm text-stone-600">
                   StakeAlign is in a small private pilot right now. You can still
